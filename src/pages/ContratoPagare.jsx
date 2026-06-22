@@ -6,7 +6,16 @@ import { useAuth } from '../context/useAuth'
 import { DOCUMENT_STATUSES } from '../lib/constants'
 import { loadConfiguration } from '../lib/configuration'
 import { auditFields, friendlyError, selectUserRows } from '../lib/db'
-import { formatDate, formatIdentity, formatPhone, money, number, safeText } from '../utils/formatters'
+import {
+  amountInWords,
+  dateParts,
+  formatDate,
+  formatIdentity,
+  formatPhone,
+  lempiras,
+  number,
+  safeText,
+} from '../utils/formatters'
 
 export default function ContratoPagare() {
   const { supabase, user } = useAuth()
@@ -28,6 +37,7 @@ export default function ContratoPagare() {
 
   async function load() {
     setLoading(true)
+    setError('')
     const [loanResult, clientResult, guarantorResult, installmentResult, configResult] = await Promise.all([
       selectUserRows(supabase, 'prestamos', user?.id),
       selectUserRows(supabase, 'clientes', user?.id),
@@ -54,8 +64,29 @@ export default function ContratoPagare() {
     return { aval, cliente, cuotas: loanCuotas, loan }
   }, [avales, clientes, cuotas, prestamos, selectedId])
 
+  const documentData = useMemo(() => {
+    const firstInstallment = selected.cuotas[0]
+    const totals = selected.cuotas.reduce(
+      (acc, cuota) => ({
+        capital: acc.capital + Number(cuota.capital || 0),
+        interes: acc.interes + Number(cuota.interes || 0),
+        total: acc.total + Number(cuota.total || 0),
+      }),
+      { capital: 0, interes: 0, total: 0 },
+    )
+    const signedAt = dateParts(selected.loan?.fecha_inicio || new Date())
+    const frecuenciaTexto = selected.loan?.frecuencia === 'QUINCENAL' ? 'quincenales' : 'mensuales'
+
+    return {
+      firstInstallment,
+      frecuenciaTexto,
+      signedAt,
+      totals,
+      valorCuota: firstInstallment?.total || 0,
+    }
+  }, [selected.cuotas, selected.loan?.fecha_inicio, selected.loan?.frecuencia])
+
   const isSigned = selected.loan?.estado_documental === 'FIRMADO'
-  const lastInstallment = selected.cuotas[selected.cuotas.length - 1]
 
   async function updateDocumentStatus(status) {
     setMessage('')
@@ -134,7 +165,7 @@ export default function ContratoPagare() {
         <div>
           <h1 className="page-title">Contrato y pagare</h1>
           <p className="page-subtitle">
-            Vista previa legal generada desde datos del prestamo, cuotas y configuracion de la acreedora.
+            Contrato privado y pagare en paginas separadas, generados desde el prestamo seleccionado.
           </p>
         </div>
         <button className="btn-primary" onClick={() => window.print()} type="button">
@@ -151,14 +182,14 @@ export default function ContratoPagare() {
       <div className="no-print grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="surface p-4">
           <label className="block">
-            <span className="field-label">Prestamo</span>
+            <span className="field-label">Contrato</span>
             <select className="field-input" onChange={(event) => setSelectedId(event.target.value)} value={selectedId}>
-              <option value="">Seleccionar prestamo</option>
+              <option value="">Seleccionar contrato</option>
               {prestamos.map((loan) => {
                 const cliente = clientes.find((row) => row.id === loan.cliente_id)
                 return (
                   <option key={loan.id} value={loan.id}>
-                    {cliente?.nombre || 'Sin cliente'} - {money(loan.total_pagar)}
+                    {cliente?.nombre || 'Sin cliente'} - {lempiras(loan.total_pagar)}
                   </option>
                 )
               })}
@@ -186,7 +217,7 @@ export default function ContratoPagare() {
                 <button
                   className="btn-secondary"
                   onClick={() =>
-                    setAdenda(`Adenda futura para el prestamo ${selected.loan.id}, emitida el ${formatDate(new Date())}.`)
+                    setAdenda(`Adenda futura para el contrato ${selected.loan.id}, emitida el ${formatDate(new Date())}.`)
                   }
                   type="button"
                 >
@@ -198,188 +229,336 @@ export default function ContratoPagare() {
         </div>
 
         <div className="grid gap-3">
-          <SignaturePad disabled={isSigned || !selected.loan} label="Firma acreedora" onSave={(data) => saveSignature('acreedora', data)} />
-          <SignaturePad disabled={isSigned || !selected.loan} label="Firma deudor" onSave={(data) => saveSignature('deudor', data)} />
+          <SignaturePad
+            disabled={isSigned || !selected.loan}
+            label="Firma acreedora"
+            onSave={(data) => saveSignature('acreedora', data)}
+          />
+          <SignaturePad
+            disabled={isSigned || !selected.loan}
+            label="Firma deudor"
+            onSave={(data) => saveSignature('deudor', data)}
+          />
           <SignaturePad disabled={isSigned || !selected.loan} label="Firma aval" onSave={(data) => saveSignature('aval', data)} />
         </div>
       </div>
 
       {!selected.loan ? (
-        <div className="surface p-8 text-center text-sm text-slate-500">No hay prestamos para generar documentos.</div>
+        <div className="surface p-8 text-center text-sm text-slate-500">No hay contratos para generar documentos.</div>
       ) : (
-        <div className="print-area space-y-6">
-          <article className="legal-document">
-            <header className="mb-8 text-center">
-              {acreedora?.logo_url ? (
-                <img alt="Logo acreedora" className="mx-auto mb-4 h-16 object-contain" src={acreedora.logo_url} />
-              ) : null}
-              <p className="text-xs font-semibold uppercase tracking-normal">Documento privado</p>
-              <h2 className="mt-2 text-2xl font-bold uppercase tracking-normal">Contrato de prestamo personal</h2>
-              <p className="mt-2 text-sm">Ciudad de {safeText(acreedora?.ciudad, 'Tegucigalpa')}, {formatDate(selected.loan.fecha_inicio)}</p>
-            </header>
+        <div className="print-area space-y-8">
+          <article className="legal-document legal-page">
+            <DocumentHeader
+              acreedora={acreedora}
+              label="Contrato privado"
+              title="Contrato privado de prestamo de dinero"
+            />
 
-            <section className="space-y-4 text-sm leading-7">
+            <section className="legal-copy">
               <p>
-                Comparecen por una parte <strong>{safeText(acreedora?.nombre)}</strong>, con identidad{' '}
-                <strong>{formatIdentity(acreedora?.identidad)}</strong>, en adelante LA ACREEDORA; y por otra parte{' '}
-                <strong>{safeText(selected.cliente?.nombre)}</strong>, con identidad{' '}
-                <strong>{formatIdentity(selected.cliente?.identidad)}</strong>, telefono{' '}
-                <strong>{formatPhone(selected.cliente?.telefono)}</strong>, en adelante EL DEUDOR.
-              </p>
-              <p>
-                Comparece como aval <strong>{safeText(selected.aval?.nombre, 'NO REGISTRADO')}</strong>, identidad{' '}
-                <strong>{formatIdentity(selected.aval?.identidad)}</strong>, telefono{' '}
-                <strong>{formatPhone(selected.aval?.telefono)}</strong>, quien acepta responder solidariamente por las
-                obligaciones aqui descritas.
+                Nosotros, por una parte, <strong>{safeText(acreedora?.nombre)}</strong>, mayor de edad, con identidad No.{' '}
+                <strong>{formatIdentity(acreedora?.identidad)}</strong>, en adelante denominada{' '}
+                <strong>LA ACREEDORA</strong>; y por otra parte,{' '}
+                <strong>{safeText(selected.cliente?.nombre)}</strong>, mayor de edad, con identidad No.{' '}
+                <strong>{formatIdentity(selected.cliente?.identidad)}</strong>, con domicilio en{' '}
+                <strong>{safeText(selected.cliente?.direccion)}</strong>, con numero de telefono{' '}
+                <strong>{formatPhone(selected.cliente?.telefono)}</strong>, en adelante denominado{' '}
+                <strong>EL DEUDOR</strong>, convenimos celebrar el presente Contrato Privado de Prestamo de Dinero,
+                sujeto a las siguientes clausulas:
               </p>
 
-              <h3 className="text-base font-bold uppercase">Primera: monto del prestamo</h3>
-              <p>
-                LA ACREEDORA entrega a EL DEUDOR la suma de <strong>{money(selected.loan.monto)}</strong>, monto que EL
-                DEUDOR declara recibir a satisfaccion.
-              </p>
+              <Clause title="Primera: monto del prestamo">
+                LA ACREEDORA entrega en calidad de prestamo a EL DEUDOR la cantidad de{' '}
+                <strong>{amountInWords(selected.loan.monto)} ({lempiras(selected.loan.monto)})</strong>, cantidad que EL
+                DEUDOR declara recibir a su entera satisfaccion en la fecha de firma del presente contrato.
+              </Clause>
 
-              <h3 className="text-base font-bold uppercase">Segunda: plazo</h3>
-              <p>
-                El plazo pactado es de <strong>{selected.loan.plazo_meses} meses</strong>, con frecuencia de pago{' '}
-                <strong>{selected.loan.frecuencia}</strong>, iniciando el {formatDate(selected.loan.fecha_inicio)} y
-                finalizando el {formatDate(lastInstallment?.fecha_vencimiento)}.
-              </p>
+              <Clause title="Segunda: plazo">
+                El plazo del presente prestamo sera de <strong>{selected.loan.plazo_meses} meses</strong>, contados a
+                partir de la fecha de firma de este contrato.
+              </Clause>
 
-              <h3 className="text-base font-bold uppercase">Tercera: interes</h3>
-              <p>
-                El interes pactado es total para todo el prestamo, no compuesto, equivalente a{' '}
-                <strong>{number(selected.loan.interes_porcentaje)}%</strong>, por un monto de{' '}
-                <strong>{money(selected.loan.interes_total)}</strong>. El total a pagar sera{' '}
-                <strong>{money(selected.loan.total_pagar)}</strong>.
-              </p>
+              <Clause title="Tercera: interes">
+                Las partes acuerdan un interes fijo de{' '}
+                <strong>{number(selected.loan.interes_porcentaje)}%</strong> sobre el capital prestado, calculado de la
+                siguiente manera:
+              </Clause>
 
-              <h3 className="text-base font-bold uppercase">Cuarta: forma de pago</h3>
-              <p>
-                EL DEUDOR pagara mediante cuotas {selected.loan.frecuencia.toLowerCase()}es segun la tabla de
-                amortizacion. Cada cuota incluye capital e interes distribuido proporcionalmente, con ajuste de centavos
-                en la ultima cuota.
-              </p>
+              <FinancialSummary loan={selected.loan} />
 
-              <h3 className="text-base font-bold uppercase">Quinta: tabla de amortizacion</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse text-xs">
-                  <thead>
-                    <tr>
-                      <th className="border px-2 py-1 text-left">#</th>
-                      <th className="border px-2 py-1 text-left">Vencimiento</th>
-                      <th className="border px-2 py-1 text-right">Capital</th>
-                      <th className="border px-2 py-1 text-right">Interes</th>
-                      <th className="border px-2 py-1 text-right">Total</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {selected.cuotas.map((cuota) => (
-                      <tr key={cuota.id}>
-                        <td className="border px-2 py-1">{cuota.numero}</td>
-                        <td className="border px-2 py-1">{formatDate(cuota.fecha_vencimiento)}</td>
-                        <td className="border px-2 py-1 text-right">{money(cuota.capital)}</td>
-                        <td className="border px-2 py-1 text-right">{money(cuota.interes)}</td>
-                        <td className="border px-2 py-1 text-right">{money(cuota.total)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <Clause title="Cuarta: forma de pago">
+                EL DEUDOR se compromete a cancelar la deuda mediante{' '}
+                <strong>
+                  {selected.cuotas.length} cuotas {documentData.frecuenciaTexto}
+                </strong>{' '}
+                consecutivas de <strong>{lempiras(documentData.valorCuota)}</strong> cada una, iniciando el dia{' '}
+                <strong>{formatDate(documentData.firstInstallment?.fecha_vencimiento)}</strong>. Los pagos deberan
+                realizarse mediante efectivo, deposito o transferencia bancaria a la cuenta indicada por LA ACREEDORA.
+              </Clause>
 
-              <h3 className="text-base font-bold uppercase">Sexta: mora</h3>
-              <p>
-                La falta de pago oportuno generara mora por periodo de <strong>{money(selected.loan.mora_periodo)}</strong>,
-                sin perjuicio de otros gastos de cobro documentados.
-              </p>
+              <h3 className="legal-section-title">Tabla de amortizacion</h3>
+              <AmortizationTable cuotas={selected.cuotas} totals={documentData.totals} />
 
-              <h3 className="text-base font-bold uppercase">Septima: vencimiento anticipado</h3>
-              <p>
-                El incumplimiento de una o mas obligaciones faculta a LA ACREEDORA a exigir el saldo pendiente, intereses,
-                mora y gastos aplicables.
-              </p>
+              <Clause title="Quinta: mora">
+                En caso de atraso en cualquiera de las cuotas pactadas, EL DEUDOR pagara un recargo por mora equivalente
+                al <strong>{number(selected.loan.mora_periodo || 0)}%</strong> de la cuota vencida por cada periodo de
+                retraso, sin perjuicio de las acciones de cobro correspondientes.
+              </Clause>
 
-              <h3 className="text-base font-bold uppercase">Octava: comunicaciones</h3>
-              <p>
-                Las partes aceptan como validas las comunicaciones remitidas a los telefonos, correos y direcciones
-                registrados en este documento.
-              </p>
+              <Clause title="Sexta: vencimiento anticipado">
+                La falta de pago de <strong>dos (2) cuotas consecutivas</strong> facultara a LA ACREEDORA para exigir el
+                pago inmediato de la totalidad del saldo pendiente.
+              </Clause>
 
-              <h3 className="text-base font-bold uppercase">Novena: gastos de cobro</h3>
-              <p>
-                EL DEUDOR y EL AVAL reconocen que los gastos razonables de cobro derivados del incumplimiento seran a su
-                cargo.
-              </p>
+              <Clause title="Septima: comunicaciones">
+                EL DEUDOR autoriza expresamente que cualquier comunicacion relacionada con el presente prestamo pueda
+                realizarse a traves de llamadas telefonicas, mensajes SMS, WhatsApp o correo electronico, utilizando los
+                datos proporcionados durante la contratacion.
+              </Clause>
 
-              <h3 className="text-base font-bold uppercase">Decima: domicilio y jurisdiccion</h3>
+              <Clause title="Octava: gastos de cobro">
+                Todos los gastos judiciales, extrajudiciales, honorarios profesionales y demas costos derivados del
+                incumplimiento seran por cuenta de EL DEUDOR.
+              </Clause>
+
+              <Clause title="Novena: domicilio y jurisdiccion">
+                Para todos los efectos legales derivados de este contrato, las partes senalan como domicilio la ciudad de{' '}
+                <strong>{safeText(acreedora?.ciudad, 'Tegucigalpa')}</strong>.
+              </Clause>
+
               <p>
-                Para los efectos legales, las partes se someten al domicilio y jurisdiccion competente de{' '}
-                {safeText(acreedora?.ciudad, 'Tegucigalpa')}, Honduras.
+                Y en senal de aceptacion firman el presente documento en dos ejemplares del mismo tenor, en la ciudad de{' '}
+                <strong>{safeText(acreedora?.ciudad, 'Tegucigalpa')}</strong>, a los{' '}
+                <strong>{documentData.signedAt.dia}</strong> dias del mes de{' '}
+                <strong>{documentData.signedAt.mes}</strong> de <strong>{documentData.signedAt.anio}</strong>.
               </p>
             </section>
 
             {adenda ? (
-              <section className="mt-8 rounded-lg border p-4 text-sm">
+              <section className="mt-8 rounded-lg border border-slate-300 p-4 text-sm">
                 <h3 className="font-bold uppercase">Adenda</h3>
                 <p className="mt-2">{adenda}</p>
               </section>
             ) : null}
 
-            <footer className="mt-14 grid gap-10 text-center text-sm sm:grid-cols-3">
-              <div>
-                {selected.loan.firma_acreedora_url ? (
-                  <img alt="Firma acreedora" className="mx-auto h-16 object-contain" src={selected.loan.firma_acreedora_url} />
-                ) : null}
-                <div className="mt-10 border-t border-slate-900 pt-2">LA ACREEDORA</div>
-              </div>
-              <div>
-                {selected.loan.firma_deudor_url ? (
-                  <img alt="Firma deudor" className="mx-auto h-16 object-contain" src={selected.loan.firma_deudor_url} />
-                ) : null}
-                <div className="mt-10 border-t border-slate-900 pt-2">EL DEUDOR</div>
-              </div>
-              <div>
-                {selected.loan.firma_aval_url ? (
-                  <img alt="Firma aval" className="mx-auto h-16 object-contain" src={selected.loan.firma_aval_url} />
-                ) : null}
-                <div className="mt-10 border-t border-slate-900 pt-2">EL AVAL</div>
-              </div>
-            </footer>
+            <ContractSignatures acreedora={acreedora} cliente={selected.cliente} aval={selected.aval} loan={selected.loan} />
           </article>
 
-          <article className="legal-document">
-            <header className="mb-8 text-center">
-              <p className="text-xs font-semibold uppercase tracking-normal">Titulo ejecutivo</p>
-              <h2 className="mt-2 text-2xl font-bold uppercase tracking-normal">Pagare</h2>
-            </header>
-            <section className="space-y-4 text-sm leading-7">
+          <article className="legal-document legal-page legal-page-break">
+            <DocumentHeader acreedora={acreedora} label="Titulo ejecutivo" title="Pagare" />
+
+            <div className="mb-8 rounded-lg border-2 border-slate-900 p-5 text-center">
+              <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Por</p>
+              <p className="mt-2 text-3xl font-black tracking-normal">{lempiras(selected.loan.total_pagar)}</p>
+              <p className="mt-2 text-sm font-semibold uppercase">{amountInWords(selected.loan.total_pagar)}</p>
+            </div>
+
+            <section className="legal-copy">
               <p>
-                Yo, <strong>{safeText(selected.cliente?.nombre)}</strong>, identidad{' '}
-                <strong>{formatIdentity(selected.cliente?.identidad)}</strong>, pagare incondicionalmente a la orden de{' '}
-                <strong>{safeText(acreedora?.nombre)}</strong> la cantidad de{' '}
-                <strong>{money(selected.loan.total_pagar)}</strong>, correspondiente a capital e interes total pactado.
+                Yo, <strong>{safeText(selected.cliente?.nombre)}</strong>, mayor de edad, con identidad No.{' '}
+                <strong>{formatIdentity(selected.cliente?.identidad)}</strong>, con domicilio en{' '}
+                <strong>{safeText(selected.cliente?.direccion)}</strong>, por medio del presente <strong>PAGARE</strong>{' '}
+                me obligo de forma incondicional e irrevocable a pagar a la orden de{' '}
+                <strong>{safeText(acreedora?.nombre)}</strong>, portadora de identidad No.{' '}
+                <strong>{formatIdentity(acreedora?.identidad)}</strong>, la suma de{' '}
+                <strong>{amountInWords(selected.loan.total_pagar)} ({lempiras(selected.loan.total_pagar)})</strong>.
               </p>
+
               <p>
-                El pago se realizara conforme a la tabla de amortizacion del contrato, con vencimiento final el{' '}
-                <strong>{formatDate(lastInstallment?.fecha_vencimiento)}</strong>. En caso de incumplimiento, acepto el
-                cobro del saldo, mora, gastos de cobro y demas obligaciones derivadas del contrato.
+                Cantidad que corresponde al capital de <strong>{lempiras(selected.loan.monto)}</strong> mas los intereses
+                pactados de <strong>{lempiras(selected.loan.interes_total)}</strong>.
               </p>
+
+              <Clause title="Forma de pago">
+                El pago se realizara mediante{' '}
+                <strong>
+                  {selected.cuotas.length} cuotas {documentData.frecuenciaTexto}
+                </strong>{' '}
+                de <strong>{lempiras(documentData.valorCuota)}</strong> cada una, iniciando el dia{' '}
+                <strong>{formatDate(documentData.firstInstallment?.fecha_vencimiento)}</strong>.
+              </Clause>
+
+              <Clause title="Clausula de vencimiento anticipado">
+                En caso de incumplimiento de dos (2) cuotas consecutivas, acepto que la totalidad del saldo pendiente se
+                considere de plazo vencido y exigible de forma inmediata, obligandome ademas al pago de recargos por mora
+                del <strong>{number(selected.loan.mora_periodo || 0)}%</strong> por periodo de atraso, gastos de cobro y
+                honorarios profesionales.
+              </Clause>
+
+              <Clause title="Renuncia de requerimiento">
+                Para todos los efectos legales, renuncio expresamente al requerimiento judicial o extrajudicial de pago y
+                senalo como domicilio la ciudad de <strong>{safeText(acreedora?.ciudad, 'Tegucigalpa')}</strong>.
+              </Clause>
+
               <p>
-                Firma como aval solidario <strong>{safeText(selected.aval?.nombre, 'NO REGISTRADO')}</strong>, identidad{' '}
-                <strong>{formatIdentity(selected.aval?.identidad)}</strong>.
+                Firmo el presente Pagare en la ciudad de{' '}
+                <strong>{safeText(acreedora?.ciudad, 'Tegucigalpa')}</strong>, a los{' '}
+                <strong>{documentData.signedAt.dia}</strong> dias del mes de{' '}
+                <strong>{documentData.signedAt.mes}</strong> de <strong>{documentData.signedAt.anio}</strong>.
               </p>
             </section>
-            <footer className="mt-16 grid gap-10 text-center text-sm sm:grid-cols-2">
-              <div>
-                <div className="mt-14 border-t border-slate-900 pt-2">EL DEUDOR</div>
-              </div>
-              <div>
-                <div className="mt-14 border-t border-slate-900 pt-2">EL AVAL</div>
-              </div>
-            </footer>
+
+            <PagareSignatures acreedora={acreedora} cliente={selected.cliente} loan={selected.loan} />
           </article>
         </div>
       )}
     </section>
+  )
+}
+
+function DocumentHeader({ acreedora, label, title }) {
+  return (
+    <header className="mb-8 border-b-2 border-slate-900 pb-5">
+      <div className="flex items-start justify-between gap-6">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">{label}</p>
+          <h2 className="mt-2 text-2xl font-black uppercase tracking-normal text-slate-950">{title}</h2>
+          <p className="mt-2 text-sm text-slate-600">{safeText(acreedora?.ciudad, 'Tegucigalpa')}, Honduras</p>
+        </div>
+        {acreedora?.logo_url ? (
+          <img alt="Logo acreedora" className="h-16 max-w-36 object-contain" src={acreedora.logo_url} />
+        ) : (
+          <div className="grid h-16 w-16 place-items-center rounded-lg border-2 border-slate-900 text-lg font-black">
+            PK
+          </div>
+        )}
+      </div>
+    </header>
+  )
+}
+
+function Clause({ children, title }) {
+  return (
+    <section>
+      <h3 className="legal-clause-title">{title}</h3>
+      <p>{children}</p>
+    </section>
+  )
+}
+
+function FinancialSummary({ loan }) {
+  const rows = [
+    ['Capital prestado', lempiras(loan.monto)],
+    ['Interes pactado', lempiras(loan.interes_total)],
+    ['Total a pagar', lempiras(loan.total_pagar)],
+  ]
+
+  return (
+    <table className="legal-table max-w-xl">
+      <tbody>
+        {rows.map(([label, value], index) => (
+          <tr className={index === rows.length - 1 ? 'font-bold' : ''} key={label}>
+            <td>{label}</td>
+            <td className="text-right">{value}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
+}
+
+function AmortizationTable({ cuotas, totals }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="legal-table text-xs">
+        <thead>
+          <tr>
+            <th>Cuota</th>
+            <th>Fecha</th>
+            <th className="text-right">Capital</th>
+            <th className="text-right">Interes</th>
+            <th className="text-right">Cuota total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cuotas.map((cuota) => (
+            <tr key={cuota.id}>
+              <td>{cuota.numero}</td>
+              <td>{formatDate(cuota.fecha_vencimiento)}</td>
+              <td className="text-right">{lempiras(cuota.capital)}</td>
+              <td className="text-right">{lempiras(cuota.interes)}</td>
+              <td className="text-right">{lempiras(cuota.total)}</td>
+            </tr>
+          ))}
+          <tr className="font-bold">
+            <td>Total</td>
+            <td />
+            <td className="text-right">{lempiras(totals.capital)}</td>
+            <td className="text-right">{lempiras(totals.interes)}</td>
+            <td className="text-right">{lempiras(totals.total)}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function ContractSignatures({ acreedora, aval, cliente, loan }) {
+  return (
+    <footer className="mt-14 space-y-8 text-sm">
+      <div className="grid gap-8 sm:grid-cols-2">
+        <SignatureBlock
+          identity={formatIdentity(acreedora?.identidad)}
+          image={loan.firma_acreedora_url}
+          name={safeText(acreedora?.nombre)}
+          title="LA ACREEDORA"
+        />
+        <SignatureBlock
+          identity={formatIdentity(cliente?.identidad)}
+          image={loan.firma_deudor_url}
+          name={safeText(cliente?.nombre)}
+          title="EL DEUDOR"
+        />
+      </div>
+      <div className="mx-auto max-w-sm">
+        <SignatureBlock
+          identity={formatIdentity(aval?.identidad)}
+          image={loan.firma_aval_url}
+          name={safeText(aval?.nombre, 'NO REGISTRADO')}
+          title="AVAL"
+        />
+      </div>
+    </footer>
+  )
+}
+
+function PagareSignatures({ acreedora, cliente, loan }) {
+  return (
+    <footer className="mt-16 grid gap-10 text-sm sm:grid-cols-2">
+      <SignatureBlock
+        details={[
+          `Direccion: ${safeText(cliente?.direccion)}`,
+          `Telefono: ${formatPhone(cliente?.telefono)}`,
+        ]}
+        identity={formatIdentity(cliente?.identidad)}
+        image={loan.firma_deudor_url}
+        name={safeText(cliente?.nombre)}
+        title="EL DEUDOR"
+      />
+      <SignatureBlock
+        identity={formatIdentity(acreedora?.identidad)}
+        image={loan.firma_acreedora_url || acreedora?.firma_url}
+        name={safeText(acreedora?.nombre)}
+        title="RECIBIDO Y ACEPTADO POR LA ACREEDORA"
+      />
+    </footer>
+  )
+}
+
+function SignatureBlock({ details = [], identity, image, name, title }) {
+  return (
+    <div className="text-center">
+      <div className="mb-3 h-16">
+        {image ? <img alt={`Firma ${title}`} className="mx-auto h-16 object-contain" src={image} /> : null}
+      </div>
+      <div className="border-t border-slate-900 pt-3">
+        <p className="text-xs font-bold uppercase tracking-[0.16em]">{title}</p>
+        <p className="mt-2 font-bold">{name}</p>
+        <p>Identidad: {identity}</p>
+        {details.map((detail) => (
+          <p key={detail}>{detail}</p>
+        ))}
+      </div>
+    </div>
   )
 }

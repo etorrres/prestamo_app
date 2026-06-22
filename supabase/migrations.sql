@@ -20,6 +20,7 @@ alter table prestamos
   add column if not exists interes_total numeric(14,2) default 0,
   add column if not exists plazo_meses integer default 1,
   add column if not exists frecuencia text default 'MENSUAL',
+  add column if not exists frecuencia_pago text default 'MENSUAL',
   add column if not exists fecha_inicio date default current_date,
   add column if not exists mora_periodo numeric(14,2) default 0,
   add column if not exists total_pagar numeric(14,2) default 0,

@@ -100,6 +100,7 @@ export default function Prestamos() {
       estado_documental: 'BORRADOR',
       fecha_inicio: values.fecha_inicio,
       frecuencia: values.frecuencia,
+      frecuencia_pago: values.frecuencia,
       interes_porcentaje: Number(values.interes_porcentaje),
       interes_total: loan.interesTotal,
       monto: loan.monto,

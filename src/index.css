@@ -113,6 +113,35 @@ button {
   @apply mx-auto max-w-4xl bg-white p-6 text-slate-950 shadow-sm dark:bg-white dark:text-slate-950 sm:p-10;
 }
 
+.legal-page {
+  @apply border border-slate-200;
+}
+
+.legal-page-break {
+  @apply mt-8;
+}
+
+.legal-copy {
+  @apply space-y-5 text-justify text-[13px] leading-7 text-slate-950 sm:text-sm;
+}
+
+.legal-clause-title,
+.legal-section-title {
+  @apply mb-2 mt-5 text-sm font-black uppercase tracking-normal text-slate-950;
+}
+
+.legal-table {
+  @apply my-4 w-full border-collapse text-slate-950;
+}
+
+.legal-table th {
+  @apply border border-slate-400 bg-slate-100 px-3 py-2 text-left text-xs font-black uppercase tracking-normal;
+}
+
+.legal-table td {
+  @apply border border-slate-300 px-3 py-2 align-top;
+}
+
 .signature-canvas {
   touch-action: none;
 }

@@ -27,6 +27,16 @@
     border: 0 !important;
   }
 
+  .legal-page {
+    min-height: auto !important;
+  }
+
+  .legal-page-break {
+    break-before: page !important;
+    margin-top: 0 !important;
+    page-break-before: always !important;
+  }
+
   table {
     page-break-inside: auto;
   }

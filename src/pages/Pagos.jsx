@@ -9,11 +9,13 @@ import { formatDate, inputDate, money } from '../utils/formatters'
 import { requiredMessage, validatePositiveMoney } from '../utils/validators'
 
 const defaultValues = {
+  cliente_id: '',
   cuota_id: '',
   fecha: inputDate(),
   metodo: 'EFECTIVO',
   monto: '',
   observacion: '',
+  prestamo_id: '',
 }
 
 export default function Pagos() {
@@ -57,7 +59,7 @@ export default function Pagos() {
     setLoading(false)
   }
 
-  const rows = useMemo(() => {
+  const pendingInstallments = useMemo(() => {
     const loans = new Map(prestamos.map((row) => [row.id, row]))
     const clients = new Map(clientes.map((row) => [row.id, row]))
     return cuotas
@@ -69,23 +71,76 @@ export default function Pagos() {
         return {
           ...cuota,
           balance,
+          cliente_id: client?.id || '',
           cliente: client?.nombre || 'Sin cliente',
+          contrato: loan ? `${client?.nombre || 'Sin cliente'} - ${money(loan.total_pagar)}` : 'Sin contrato',
+          prestamo_id: loan?.id || cuota.prestamo_id,
         }
       })
   }, [clientes, cuotas, prestamos])
 
+  const selectedClientId = useWatch({ control, name: 'cliente_id' })
+  const selectedLoanId = useWatch({ control, name: 'prestamo_id' })
   const selectedCuotaId = useWatch({ control, name: 'cuota_id' })
+
+  const loanOptions = useMemo(() => {
+    const clients = new Map(clientes.map((row) => [row.id, row]))
+    return prestamos
+      .filter((loan) => loan.estado !== 'CANCELADO')
+      .filter((loan) => (selectedClientId ? loan.cliente_id === selectedClientId : true))
+      .map((loan) => {
+        const client = clients.get(loan.cliente_id)
+        return {
+          ...loan,
+          cliente: client?.nombre || 'Sin cliente',
+        }
+      })
+  }, [clientes, prestamos, selectedClientId])
+
+  const cuotaOptions = useMemo(() => {
+    if (!selectedLoanId) return []
+    return pendingInstallments.filter((cuota) => cuota.prestamo_id === selectedLoanId)
+  }, [pendingInstallments, selectedLoanId])
+
   useEffect(() => {
-    const selected = rows.find((row) => row.id === selectedCuotaId)
+    const selectedLoan = prestamos.find((loan) => loan.id === selectedLoanId)
+    if (!selectedLoan) return
+    if (!selectedClientId) {
+      setValue('cliente_id', selectedLoan.cliente_id || '')
+      return
+    }
+    if (selectedLoan.cliente_id !== selectedClientId) {
+      setValue('prestamo_id', '')
+      setValue('cuota_id', '')
+      setValue('monto', '')
+    }
+  }, [prestamos, selectedClientId, selectedLoanId, setValue])
+
+  useEffect(() => {
+    if (!selectedLoanId) {
+      setValue('cuota_id', '')
+      setValue('monto', '')
+      return
+    }
+
+    const selectedCuotaStillVisible = cuotaOptions.some((cuota) => cuota.id === selectedCuotaId)
+    if (selectedCuotaId && !selectedCuotaStillVisible) {
+      setValue('cuota_id', '')
+      setValue('monto', '')
+    }
+  }, [cuotaOptions, selectedCuotaId, selectedLoanId, setValue])
+
+  useEffect(() => {
+    const selected = cuotaOptions.find((row) => row.id === selectedCuotaId)
     if (selected) setValue('monto', selected.balance || selected.total)
-  }, [rows, selectedCuotaId, setValue])
+  }, [cuotaOptions, selectedCuotaId, setValue])
 
   async function onSubmit(values) {
     setError('')
     setSuccess('')
-    const selected = cuotas.find((cuota) => cuota.id === values.cuota_id)
+    const selected = cuotas.find((cuota) => cuota.id === values.cuota_id && cuota.prestamo_id === values.prestamo_id)
     if (!selected) {
-      setError('Selecciona una cuota pendiente.')
+      setError('Selecciona un contrato y una cuota pendiente.')
       return
     }
 
@@ -192,23 +247,54 @@ export default function Pagos() {
             </span>
             <div>
               <h2 className="text-base font-semibold text-slate-950 dark:text-white">Nuevo pago</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Selecciona una cuota pendiente.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Primero elige cliente o contrato.</p>
             </div>
           </div>
 
           <div className="space-y-4">
             <label className="block">
-              <span className="field-label">Cuota</span>
+              <span className="field-label">Persona del contrato</span>
+              <select className="field-input" {...register('cliente_id')}>
+                <option value="">Todas las personas</option>
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="block">
+              <span className="field-label">Contrato</span>
               <select
                 className="field-input"
+                {...register('prestamo_id', {
+                  required: requiredMessage('Contrato'),
+                })}
+              >
+                <option value="">Seleccionar contrato</option>
+                {loanOptions.map((loan) => (
+                  <option key={loan.id} value={loan.id}>
+                    {loan.cliente} - {formatDate(loan.fecha_inicio)} - saldo {money(loan.saldo ?? loan.total_pagar)}
+                  </option>
+                ))}
+              </select>
+              {errors.prestamo_id ? <p className="field-error">{errors.prestamo_id.message}</p> : null}
+            </label>
+
+            <label className="block">
+              <span className="field-label">Cuota del contrato</span>
+              <select
+                className="field-input"
+                disabled={!selectedLoanId}
                 {...register('cuota_id', {
                   required: requiredMessage('Cuota'),
                 })}
               >
-                <option value="">Seleccionar</option>
-                {rows.map((row) => (
+                <option value="">{selectedLoanId ? 'Seleccionar cuota' : 'Selecciona primero un contrato'}</option>
+                {cuotaOptions.map((row) => (
                   <option key={row.id} value={row.id}>
-                    {row.cliente} - cuota #{row.numero} - {money(row.balance)}
+                    Cuota #{row.numero} - vence {formatDate(row.fecha_vencimiento)} - saldo {money(row.balance)}
                   </option>
                 ))}
               </select>
