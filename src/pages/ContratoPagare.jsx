@@ -527,12 +527,16 @@ function AmortizationTable({ cuotas, totals }) {
 }
 
 function ContractSignatures({ acreedora, aval, cliente, loan }) {
+  const creditorSignature = loan.firma_acreedora_url || acreedora?.firma_url
+  const creditorSignatureHeight = Number(acreedora?.firma_alto || 96)
+
   return (
     <footer className="mt-14 space-y-8 text-sm">
       <div className="grid gap-8 sm:grid-cols-2">
         <SignatureBlock
           identity={formatIdentity(acreedora?.identidad)}
-          image={loan.firma_acreedora_url}
+          image={creditorSignature}
+          imageHeight={creditorSignatureHeight}
           name={safeText(acreedora?.nombre)}
           title="LA ACREEDORA"
         />
@@ -556,6 +560,9 @@ function ContractSignatures({ acreedora, aval, cliente, loan }) {
 }
 
 function PagareSignatures({ acreedora, cliente, loan }) {
+  const creditorSignature = loan.firma_acreedora_url || acreedora?.firma_url
+  const creditorSignatureHeight = Number(acreedora?.firma_alto || 96)
+
   return (
     <footer className="pagare-signatures mt-10 grid gap-8 text-sm sm:grid-cols-2">
       <SignatureBlock
@@ -570,7 +577,8 @@ function PagareSignatures({ acreedora, cliente, loan }) {
       />
       <SignatureBlock
         identity={formatIdentity(acreedora?.identidad)}
-        image={loan.firma_acreedora_url || acreedora?.firma_url}
+        image={creditorSignature}
+        imageHeight={creditorSignatureHeight}
         name={safeText(acreedora?.nombre)}
         title="RECIBIDO Y ACEPTADO POR LA ACREEDORA"
       />
@@ -578,11 +586,18 @@ function PagareSignatures({ acreedora, cliente, loan }) {
   )
 }
 
-function SignatureBlock({ details = [], identity, image, name, title }) {
+function SignatureBlock({ details = [], identity, image, imageHeight = 64, name, title }) {
   return (
     <div className="text-center">
-      <div className="mb-3 h-16">
-        {image ? <img alt={`Firma ${title}`} className="mx-auto h-16 object-contain" src={image} /> : null}
+      <div className="mb-3 flex items-end justify-center" style={{ minHeight: `${imageHeight}px` }}>
+        {image ? (
+          <img
+            alt={`Firma ${title}`}
+            className="mx-auto max-w-full object-contain"
+            src={image}
+            style={{ height: `${imageHeight}px` }}
+          />
+        ) : null}
       </div>
       <div className="border-t border-slate-900 pt-3">
         <p className="text-xs font-bold uppercase tracking-[0.16em]">{title}</p>

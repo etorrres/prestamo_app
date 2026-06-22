@@ -72,9 +72,13 @@ create table if not exists configuracion (
   cuenta_bancaria text,
   logo_url text,
   firma_url text,
+  firma_alto integer default 96,
   fecha_creacion timestamptz default now(),
   fecha_actualizacion timestamptz default now()
 );
+
+alter table configuracion
+  add column if not exists firma_alto integer default 96;
 
 create index if not exists clientes_user_id_idx on clientes(user_id);
 create index if not exists avales_user_id_idx on avales(user_id);

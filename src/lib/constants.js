@@ -3,6 +3,7 @@ export const DEFAULT_CREDITOR = {
   correo: '',
   cuenta_bancaria: '',
   direccion: '',
+  firma_alto: 96,
   firma_url: '',
   identidad: '0801199215516',
   logo_url: '',

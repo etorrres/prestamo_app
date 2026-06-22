@@ -21,6 +21,7 @@ export default function Configuracion() {
   } = useForm()
   const logoUrl = useWatch({ control, name: 'logo_url' })
   const firmaUrl = useWatch({ control, name: 'firma_url' })
+  const firmaAlto = useWatch({ control, name: 'firma_alto' }) || 96
   const identidad = useWatch({ control, name: 'identidad' })
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export default function Configuracion() {
       correo: values.correo?.trim() || '',
       cuenta_bancaria: values.cuenta_bancaria?.trim() || '',
       direccion: values.direccion?.trim() || '',
+      firma_alto: Number(values.firma_alto || 96),
       firma_url: values.firma_url?.trim() || '',
       identidad: normalizeIdentity(values.identidad),
       logo_url: values.logo_url?.trim() || '',
@@ -158,8 +160,29 @@ export default function Configuracion() {
 
           <div className="surface-muted p-4">
             <p className="text-sm font-semibold text-slate-900 dark:text-white">Firma digital opcional</p>
-            {firmaUrl ? <img alt="Firma" className="mt-3 h-20 max-w-full rounded-lg bg-white object-contain" src={firmaUrl} /> : null}
+            {firmaUrl ? (
+              <div className="mt-3 rounded-lg bg-white p-3">
+                <img
+                  alt="Firma"
+                  className="max-w-full object-contain"
+                  src={firmaUrl}
+                  style={{ height: `${firmaAlto}px` }}
+                />
+              </div>
+            ) : null}
             <input className="field-input" {...register('firma_url')} placeholder="URL de firma" />
+            <label className="mt-3 block">
+              <span className="field-label">Tamaño de firma</span>
+              <input
+                className="field-input"
+                max="180"
+                min="48"
+                step="4"
+                type="range"
+                {...register('firma_alto')}
+              />
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{firmaAlto}px de alto</p>
+            </label>
             <label className="btn-secondary mt-3 w-full cursor-pointer">
               {uploading === 'firma_url' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
               Subir firma
