@@ -251,6 +251,7 @@ export default function ContratoPagare() {
             <DocumentHeader
               acreedora={acreedora}
               label="Contrato privado"
+              showLogo={false}
               title="Contrato privado de prestamo de dinero"
             />
 
@@ -344,16 +345,16 @@ export default function ContratoPagare() {
             <ContractSignatures acreedora={acreedora} cliente={selected.cliente} aval={selected.aval} loan={selected.loan} />
           </article>
 
-          <article className="legal-document legal-page legal-page-break">
-            <DocumentHeader acreedora={acreedora} label="Titulo ejecutivo" title="Pagare" />
+          <article className="legal-document legal-page legal-page-break pagare-page">
+            <DocumentHeader acreedora={acreedora} compact label="Titulo ejecutivo" title="Pagare" />
 
-            <div className="mb-8 rounded-lg border-2 border-slate-900 p-5 text-center">
+            <div className="mb-5 rounded-lg border-2 border-slate-900 p-4 text-center">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Por</p>
-              <p className="mt-2 text-3xl font-black tracking-normal">{lempiras(selected.loan.total_pagar)}</p>
+              <p className="mt-2 text-2xl font-black tracking-normal">{lempiras(selected.loan.total_pagar)}</p>
               <p className="mt-2 text-sm font-semibold uppercase">{amountInWords(selected.loan.total_pagar)}</p>
             </div>
 
-            <section className="legal-copy">
+            <section className="legal-copy pagare-copy">
               <p>
                 Yo, <strong>{safeText(selected.cliente?.nombre)}</strong>, mayor de edad, con identidad No.{' '}
                 <strong>{formatIdentity(selected.cliente?.identidad)}</strong>, con domicilio en{' '}
@@ -406,19 +407,27 @@ export default function ContratoPagare() {
   )
 }
 
-function DocumentHeader({ acreedora, label, title }) {
+function DocumentHeader({ acreedora, compact = false, label, showLogo = true, title }) {
   return (
-    <header className="mb-8 border-b-2 border-slate-900 pb-5">
+    <header className={`${compact ? 'mb-5 pb-4' : 'mb-8 pb-5'} border-b-2 border-slate-900`}>
       <div className="flex items-start justify-between gap-6">
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">{label}</p>
-          <h2 className="mt-2 text-2xl font-black uppercase tracking-normal text-slate-950">{title}</h2>
+          <h2 className={`${compact ? 'text-xl' : 'text-2xl'} mt-2 font-black uppercase tracking-normal text-slate-950`}>
+            {title}
+          </h2>
           <p className="mt-2 text-sm text-slate-600">{safeText(acreedora?.ciudad, 'Tegucigalpa')}, Honduras</p>
         </div>
-        {acreedora?.logo_url ? (
-          <img alt="Logo acreedora" className="h-16 max-w-36 object-contain" src={acreedora.logo_url} />
+        {!showLogo ? null : acreedora?.logo_url ? (
+          <img
+            alt="Logo acreedora"
+            className={`${compact ? 'h-12 max-w-28' : 'h-16 max-w-36'} object-contain`}
+            src={acreedora.logo_url}
+          />
         ) : (
-          <div className="grid h-16 w-16 place-items-center rounded-lg border-2 border-slate-900 text-lg font-black">
+          <div
+            className={`${compact ? 'h-12 w-12 text-base' : 'h-16 w-16 text-lg'} grid place-items-center rounded-lg border-2 border-slate-900 font-black`}
+          >
             PK
           </div>
         )}
@@ -524,7 +533,7 @@ function ContractSignatures({ acreedora, aval, cliente, loan }) {
 
 function PagareSignatures({ acreedora, cliente, loan }) {
   return (
-    <footer className="mt-16 grid gap-10 text-sm sm:grid-cols-2">
+    <footer className="pagare-signatures mt-10 grid gap-8 text-sm sm:grid-cols-2">
       <SignatureBlock
         details={[
           `Direccion: ${safeText(cliente?.direccion)}`,

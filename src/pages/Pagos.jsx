@@ -102,6 +102,29 @@ export default function Pagos() {
     return pendingInstallments.filter((cuota) => cuota.prestamo_id === selectedLoanId)
   }, [pendingInstallments, selectedLoanId])
 
+  const selectedPaymentTarget = useMemo(
+    () => cuotaOptions.find((row) => row.id === selectedCuotaId),
+    [cuotaOptions, selectedCuotaId],
+  )
+
+  const paymentRows = useMemo(() => {
+    const loans = new Map(prestamos.map((row) => [row.id, row]))
+    const clients = new Map(clientes.map((row) => [row.id, row]))
+    const installments = new Map(cuotas.map((row) => [row.id, row]))
+
+    return pagos.map((pago) => {
+      const loan = loans.get(pago.prestamo_id)
+      const client = clients.get(loan?.cliente_id)
+      const installment = installments.get(pago.cuota_id)
+
+      return {
+        ...pago,
+        cliente: client?.nombre || 'Sin cliente',
+        cuota_numero: installment?.numero || 'N/D',
+      }
+    })
+  }, [clientes, cuotas, pagos, prestamos])
+
   useEffect(() => {
     const selectedLoan = prestamos.find((loan) => loan.id === selectedLoanId)
     if (!selectedLoan) return
@@ -219,6 +242,16 @@ export default function Pagos() {
   }
 
   const paymentColumns = [
+    {
+      header: 'Cliente',
+      key: 'cliente',
+      render: (row) => (
+        <div>
+          <p className="font-semibold text-slate-950 dark:text-white">{row.cliente}</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Cuota #{row.cuota_numero}</p>
+        </div>
+      ),
+    },
     { header: 'Fecha', key: 'fecha', render: (row) => formatDate(row.fecha) },
     { header: 'Monto', key: 'monto', render: (row) => money(row.monto) },
     { header: 'Metodo', key: 'metodo' },
@@ -294,12 +327,25 @@ export default function Pagos() {
                 <option value="">{selectedLoanId ? 'Seleccionar cuota' : 'Selecciona primero un contrato'}</option>
                 {cuotaOptions.map((row) => (
                   <option key={row.id} value={row.id}>
-                    Cuota #{row.numero} - vence {formatDate(row.fecha_vencimiento)} - saldo {money(row.balance)}
+                    {row.cliente} - cuota #{row.numero} - vence {formatDate(row.fecha_vencimiento)} - saldo{' '}
+                    {money(row.balance)}
                   </option>
                 ))}
               </select>
               {errors.cuota_id ? <p className="field-error">{errors.cuota_id.message}</p> : null}
             </label>
+
+            {selectedPaymentTarget ? (
+              <div className="surface-muted p-3 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-normal text-slate-500 dark:text-slate-400">
+                  Pago para
+                </p>
+                <p className="mt-1 font-semibold text-slate-950 dark:text-white">{selectedPaymentTarget.cliente}</p>
+                <p className="mt-1 text-slate-500 dark:text-slate-400">
+                  Cuota #{selectedPaymentTarget.numero} · Saldo {money(selectedPaymentTarget.balance)}
+                </p>
+              </div>
+            ) : null}
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
               <label className="block">
@@ -353,7 +399,7 @@ export default function Pagos() {
               Cargando pagos
             </div>
           ) : (
-            <DataTable columns={paymentColumns} emptyText="No hay pagos registrados." rows={pagos} />
+            <DataTable columns={paymentColumns} emptyText="No hay pagos registrados." rows={paymentRows} />
           )}
         </div>
       </div>

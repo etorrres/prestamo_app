@@ -1,6 +1,6 @@
 @media print {
   @page {
-    margin: 18mm;
+    margin: 15mm;
     size: letter;
   }
 
@@ -35,6 +35,27 @@
     break-before: page !important;
     margin-top: 0 !important;
     page-break-before: always !important;
+  }
+
+  .pagare-page {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .pagare-page .legal-copy {
+    font-size: 11px !important;
+    line-height: 1.45 !important;
+  }
+
+  .pagare-page .legal-clause-title {
+    font-size: 11px !important;
+    margin-bottom: 3px !important;
+    margin-top: 10px !important;
+  }
+
+  .pagare-signatures {
+    font-size: 10px !important;
+    margin-top: 28px !important;
   }
 
   table {

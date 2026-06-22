@@ -41,7 +41,12 @@ export function number(value = 0) {
 }
 
 export function lempiras(value = 0) {
-  return `L ${number(value)}`
+  const amount = Number(value) || 0
+  const hasCents = Math.round(amount * 100) % 100 !== 0
+  return `L ${new Intl.NumberFormat('es-HN', {
+    maximumFractionDigits: hasCents ? 2 : 0,
+    minimumFractionDigits: hasCents ? 2 : 0,
+  }).format(amount)}`
 }
 
 export function formatDate(value) {

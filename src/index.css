@@ -125,6 +125,18 @@ button {
   @apply space-y-5 text-justify text-[13px] leading-7 text-slate-950 sm:text-sm;
 }
 
+.pagare-page {
+  @apply max-w-3xl;
+}
+
+.pagare-copy {
+  @apply space-y-3 text-[12px] leading-6 sm:text-[13px];
+}
+
+.pagare-signatures {
+  @apply text-xs;
+}
+
 .legal-clause-title,
 .legal-section-title {
   @apply mb-2 mt-5 text-sm font-black uppercase tracking-normal text-slate-950;
