@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useForm, useWatch } from 'react-hook-form'
-import { CreditCard, Loader2 } from 'lucide-react'
+import { CreditCard, Loader2, MessageCircle } from 'lucide-react'
 import DataTable from '../components/DataTable'
 import { useAuth } from '../context/useAuth'
+import { loadConfiguration } from '../lib/configuration'
 import { PAYMENT_METHODS } from '../lib/constants'
 import { auditFields, friendlyError, selectUserRows } from '../lib/db'
 import { formatDate, inputDate, money } from '../utils/formatters'
 import { requiredMessage, validatePositiveMoney } from '../utils/validators'
+import { openWhatsapp, paymentReceiptMessage } from '../utils/whatsapp'
 
 const defaultValues = {
   cliente_id: '',
@@ -24,6 +26,8 @@ export default function Pagos() {
   const [prestamos, setPrestamos] = useState([])
   const [clientes, setClientes] = useState([])
   const [pagos, setPagos] = useState([])
+  const [acreedora, setAcreedora] = useState(null)
+  const [receipt, setReceipt] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -44,11 +48,12 @@ export default function Pagos() {
   async function load() {
     setLoading(true)
     setError('')
-    const [installmentResult, loanResult, clientResult, paymentResult] = await Promise.all([
+    const [installmentResult, loanResult, clientResult, paymentResult, configResult] = await Promise.all([
       selectUserRows(supabase, 'cuotas', user?.id, { order: 'fecha_vencimiento', ascending: true }),
       selectUserRows(supabase, 'prestamos', user?.id),
       selectUserRows(supabase, 'clientes', user?.id),
       selectUserRows(supabase, 'pagos', user?.id, { order: 'fecha', ascending: false }),
+      loadConfiguration(supabase, user?.id),
     ])
     const loadError = installmentResult.error || loanResult.error || clientResult.error || paymentResult.error
     if (loadError) setError(friendlyError(loadError))
@@ -56,6 +61,7 @@ export default function Pagos() {
     setPrestamos(loanResult.data || [])
     setClientes(clientResult.data || [])
     setPagos(paymentResult.data || [])
+    setAcreedora(configResult.data)
     setLoading(false)
   }
 
@@ -161,15 +167,33 @@ export default function Pagos() {
   async function onSubmit(values) {
     setError('')
     setSuccess('')
+    setReceipt(null)
     const selected = cuotas.find((cuota) => cuota.id === values.cuota_id && cuota.prestamo_id === values.prestamo_id)
     if (!selected) {
       setError('Selecciona un contrato y una cuota pendiente.')
       return
     }
 
+    const loan = prestamos.find((row) => row.id === selected.prestamo_id)
+    const client = clientes.find((row) => row.id === loan?.cliente_id)
+    if (!loan || !client) {
+      setError('No se encontro el cliente asociado al contrato.')
+      return
+    }
+
     const paymentAmount = Number(values.monto)
-    const nextPaid = Number(selected.pagado || 0) + paymentAmount
-    const isPaid = nextPaid + 0.009 >= Number(selected.total || 0)
+    const selectedBalance = Math.max(0, Number(selected.total || 0) - Number(selected.pagado || 0))
+    if (paymentAmount + 0.009 < selectedBalance) {
+      setError('El monto debe cubrir el saldo de la cuota para marcarla como pagada.')
+      return
+    }
+
+    const previousLoanInstallments = cuotas.filter((cuota) => cuota.prestamo_id === selected.prestamo_id)
+    const previousBalance = previousLoanInstallments.reduce(
+      (sum, cuota) => sum + Math.max(0, Number(cuota.total || 0) - Number(cuota.pagado || 0)),
+      0,
+    )
+    const nextPaid = Math.max(Number(selected.pagado || 0) + paymentAmount, Number(selected.total || 0))
 
     const paymentPayload = {
       cuota_id: selected.id,
@@ -193,8 +217,8 @@ export default function Pagos() {
       .from('cuotas')
       .update({
         ...auditFields(user.id),
-        estado: isPaid ? 'PAGADA' : 'PENDIENTE',
-        fecha_pago: isPaid ? values.fecha : null,
+        estado: 'PAGADA',
+        fecha_pago: values.fecha,
         pagado: Number(nextPaid.toFixed(2)),
       })
       .eq('id', selected.id)
@@ -209,7 +233,7 @@ export default function Pagos() {
       cuota.id === selected.id
         ? {
             ...cuota,
-            estado: isPaid ? 'PAGADA' : 'PENDIENTE',
+            estado: 'PAGADA',
             pagado: Number(nextPaid.toFixed(2)),
           }
         : cuota,
@@ -236,6 +260,22 @@ export default function Pagos() {
       return
     }
 
+    const receiptMessage = paymentReceiptMessage({
+      acreedora,
+      cliente: client,
+      cuota: selected,
+      fecha: values.fecha,
+      metodo: values.metodo,
+      monto: paymentAmount,
+      prestamo: loan,
+      saldoAnterior: previousBalance,
+      saldoPendiente: saldo,
+    })
+
+    setReceipt({
+      message: receiptMessage,
+      phone: client.telefono,
+    })
     reset(defaultValues)
     setSuccess('Pago registrado correctamente.')
     await load()
@@ -271,6 +311,25 @@ export default function Pagos() {
 
       {error ? <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
       {success ? <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{success}</p> : null}
+      {receipt ? (
+        <div className="surface flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-950 dark:text-white">Comprobante listo para WhatsApp</p>
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+              Se generó un mensaje en texto plano para el cliente.
+            </p>
+          </div>
+          <button
+            className="btn-primary"
+            disabled={!receipt.phone}
+            onClick={() => openWhatsapp(receipt.phone, receipt.message)}
+            type="button"
+          >
+            <MessageCircle className="h-4 w-4" />
+            Enviar comprobante por WhatsApp
+          </button>
+        </div>
+      ) : null}
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,420px)_1fr]">
         <form className="surface h-fit p-4 sm:p-5" onSubmit={handleSubmit(onSubmit)}>

@@ -1,4 +1,4 @@
-import { formatDate, formatPhone, money } from './formatters'
+import { formatDate, formatPhone, money, safeText } from './formatters'
 
 export function whatsappUrl(phone, message) {
   const digits = String(phone || '').replace(/\D/g, '')
@@ -16,4 +16,34 @@ export function preventiveReminder({ acreedora, cliente, cuota }) {
 
 export function overdueReminder({ acreedora, cliente, cuota }) {
   return `Hola ${cliente.nombre}. Su cuota ${cuota.numero} por ${money(cuota.total)} se encuentra vencida desde el ${formatDate(cuota.fecha_vencimiento)}. Favor comunicarse con ${acreedora.nombre} para regularizar el pago.`
+}
+
+export function paymentReceiptMessage({
+  acreedora,
+  cliente,
+  cuota,
+  fecha,
+  metodo,
+  monto,
+  prestamo,
+  saldoAnterior,
+  saldoPendiente,
+}) {
+  const loanNumber = prestamo.numero || String(prestamo.id || '').slice(0, 8).toLocaleUpperCase('es-HN')
+
+  return [
+    '*COMPROBANTE DE PAGO*',
+    '',
+    `Cliente: *${safeText(cliente.nombre)}*`,
+    `Numero de prestamo: *${loanNumber || 'N/D'}*`,
+    `Cuota pagada: *#${cuota.numero || 'N/D'}*`,
+    `Fecha de pago: *${formatDate(fecha)}*`,
+    `Metodo de pago: *${safeText(metodo)}*`,
+    `Monto pagado: *${money(monto)}*`,
+    `Saldo anterior: *${money(saldoAnterior)}*`,
+    `Saldo pendiente: *${money(saldoPendiente)}*`,
+    `Acreedora: *${safeText(acreedora?.nombre)}*`,
+    '',
+    'Gracias por su pago. Conservamos este comprobante como constancia del abono registrado.',
+  ].join('\n')
 }
