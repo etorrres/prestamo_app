@@ -107,29 +107,42 @@ export default function ContratoPagare() {
   async function saveSignature(type, dataUrl) {
     setMessage('')
     if (!selected.loan || !supabase || isSigned) return
-    const blob = await fetch(dataUrl).then((response) => response.blob())
+    let signatureSource = dataUrl
+    const blob = dataUrlToBlob(dataUrl)
     const path = `${user.id}/${selected.loan.id}/${type}-${Date.now()}.png`
     const { error: uploadError } = await supabase.storage.from('firmas').upload(path, blob, {
       cacheControl: '3600',
       contentType: 'image/png',
       upsert: true,
     })
-    if (uploadError) {
-      setError('No fue posible guardar la firma. Verifica el bucket firmas en Supabase Storage.')
-      return
+
+    if (!uploadError) {
+      const { data } = supabase.storage.from('firmas').getPublicUrl(path)
+      signatureSource = data.publicUrl
     }
-    const { data } = supabase.storage.from('firmas').getPublicUrl(path)
+
     const field = `firma_${type}_url`
     const { error: updateError } = await supabase
       .from('prestamos')
-      .update({ ...auditFields(user.id), [field]: data.publicUrl })
+      .update({ ...auditFields(user.id), [field]: signatureSource })
       .eq('id', selected.loan.id)
       .eq('user_id', user.id)
+
     if (updateError) {
       setError(friendlyError(updateError))
       return
     }
-    setMessage('Firma guardada correctamente.')
+
+    setPrestamos((current) =>
+      current.map((prestamo) =>
+        prestamo.id === selected.loan.id ? { ...prestamo, [field]: signatureSource } : prestamo,
+      ),
+    )
+    setMessage(
+      uploadError
+        ? 'Firma insertada en el documento. Revisa el bucket firmas para almacenamiento permanente.'
+        : 'Firma guardada e insertada en el documento.',
+    )
     await load()
   }
 
@@ -434,6 +447,17 @@ function DocumentHeader({ acreedora, compact = false, label, showLogo = true, ti
       </div>
     </header>
   )
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [header, encoded] = dataUrl.split(',')
+  const mime = header.match(/:(.*?);/)?.[1] || 'image/png'
+  const binary = atob(encoded)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  return new Blob([bytes], { type: mime })
 }
 
 function Clause({ children, title }) {

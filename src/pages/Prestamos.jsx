@@ -22,9 +22,15 @@ const defaultValues = {
   plazo_meses: 1,
 }
 
+function canEditLoan(loan) {
+  const status = loan?.estado_documental || 'BORRADOR'
+  return status !== 'APROBADO' && status !== 'FIRMADO'
+}
+
 export default function Prestamos() {
   const { supabase, user } = useAuth()
   const [open, setOpen] = useState(false)
+  const [editingLoan, setEditingLoan] = useState(null)
   const [prestamos, setPrestamos] = useState([])
   const [clientes, setClientes] = useState([])
   const [avales, setAvales] = useState([])
@@ -79,7 +85,28 @@ export default function Prestamos() {
   }, [avales, clientes, prestamos])
 
   function openCreate() {
+    setEditingLoan(null)
     reset(defaultValues)
+    setOpen(true)
+  }
+
+  function openEdit(row) {
+    if (!canEditLoan(row)) {
+      setError('Solo se pueden editar contratos en estado BORRADOR.')
+      return
+    }
+
+    setEditingLoan(row)
+    reset({
+      aval_id: row.aval_id || '',
+      cliente_id: row.cliente_id || '',
+      fecha_inicio: row.fecha_inicio || inputDate(),
+      frecuencia: row.frecuencia_pago || row.frecuencia || 'MENSUAL',
+      interes_porcentaje: row.interes_porcentaje ?? 0,
+      monto: row.monto ?? '',
+      mora_periodo: row.mora_periodo ?? 0,
+      plazo_meses: row.plazo_meses ?? 1,
+    })
     setOpen(true)
   }
 
@@ -97,7 +124,6 @@ export default function Prestamos() {
       aval_id: values.aval_id || null,
       cliente_id: values.cliente_id,
       estado: 'ACTIVO',
-      estado_documental: 'BORRADOR',
       fecha_inicio: values.fecha_inicio,
       frecuencia: values.frecuencia,
       frecuencia_pago: values.frecuencia,
@@ -110,9 +136,91 @@ export default function Prestamos() {
       total_pagar: loan.totalPagar,
     }
 
+    if (editingLoan) {
+      if (!canEditLoan(editingLoan)) {
+        setError('Este contrato ya fue aprobado o firmado y no puede editarse.')
+        return
+      }
+
+      const [currentLoanResult, paymentsResult, paidInstallmentsResult] = await Promise.all([
+        supabase
+          .from('prestamos')
+          .select('estado_documental')
+          .eq('id', editingLoan.id)
+          .eq('user_id', user.id)
+          .single(),
+        supabase
+          .from('pagos')
+          .select('id', { count: 'exact', head: true })
+          .eq('prestamo_id', editingLoan.id)
+          .eq('user_id', user.id),
+        supabase
+          .from('cuotas')
+          .select('id', { count: 'exact', head: true })
+          .eq('prestamo_id', editingLoan.id)
+          .eq('user_id', user.id)
+          .eq('estado', 'PAGADA'),
+      ])
+
+      if (currentLoanResult.error || paymentsResult.error || paidInstallmentsResult.error) {
+        setError('No se pudo validar si el contrato tiene pagos registrados.')
+        return
+      }
+
+      if (!canEditLoan(currentLoanResult.data)) {
+        setError('Este contrato ya fue aprobado o firmado y no puede editarse.')
+        return
+      }
+
+      if ((paymentsResult.count || 0) > 0 || (paidInstallmentsResult.count || 0) > 0) {
+        setError('No se puede editar un contrato que ya tiene pagos o cuotas pagadas.')
+        return
+      }
+
+      const { error: updateError } = await supabase
+        .from('prestamos')
+        .update({ ...payload, ...auditFields(user.id), estado_documental: editingLoan.estado_documental || 'BORRADOR' })
+        .eq('id', editingLoan.id)
+        .eq('user_id', user.id)
+
+      if (updateError) {
+        setError(friendlyError(updateError))
+        return
+      }
+
+      const { error: deleteInstallmentsError } = await supabase
+        .from('cuotas')
+        .delete()
+        .eq('prestamo_id', editingLoan.id)
+        .eq('user_id', user.id)
+
+      if (deleteInstallmentsError) {
+        setError(friendlyError(deleteInstallmentsError))
+        return
+      }
+
+      const cuotas = loan.cuotas.map((cuota) => ({
+        ...cuota,
+        ...auditFields(user.id, true),
+        pagado: 0,
+        prestamo_id: editingLoan.id,
+      }))
+
+      const { error: cuotasError } = await supabase.from('cuotas').insert(cuotas)
+      if (cuotasError) {
+        setError(friendlyError(cuotasError))
+        return
+      }
+
+      setOpen(false)
+      setEditingLoan(null)
+      await load()
+      return
+    }
+
     const { data, error: loanError } = await supabase
       .from('prestamos')
-      .insert({ ...payload, ...auditFields(user.id, true) })
+      .insert({ ...payload, ...auditFields(user.id, true), estado_documental: 'BORRADOR' })
       .select()
       .single()
 
@@ -179,7 +287,14 @@ export default function Prestamos() {
       key: 'acciones',
       render: (row) => (
         <div className="flex gap-2">
-          <button aria-label="Editar prestamo" className="icon-btn" disabled type="button">
+          <button
+            aria-label="Editar contrato"
+            className="icon-btn"
+            disabled={!canEditLoan(row)}
+            onClick={() => openEdit(row)}
+            title={canEditLoan(row) ? 'Editar contrato' : 'Contrato aprobado o firmado'}
+            type="button"
+          >
             <Edit3 className="h-4 w-4" />
           </button>
           <button aria-label="Eliminar prestamo" className="icon-btn" onClick={() => remove(row)} type="button">
@@ -216,7 +331,14 @@ export default function Prestamos() {
         <DataTable columns={columns} emptyText="No hay prestamos registrados." rows={rows} />
       )}
 
-      <Modal onClose={() => setOpen(false)} open={open} title="Nuevo prestamo">
+      <Modal
+        onClose={() => {
+          setOpen(false)
+          setEditingLoan(null)
+        }}
+        open={open}
+        title={editingLoan ? 'Editar contrato' : 'Nuevo prestamo'}
+      >
         <form className="grid gap-4" onSubmit={handleSubmit(onSubmit)}>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
@@ -345,12 +467,19 @@ export default function Prestamos() {
           </div>
 
           <div className="flex justify-end gap-2 pt-2">
-            <button className="btn-secondary" onClick={() => setOpen(false)} type="button">
+            <button
+              className="btn-secondary"
+              onClick={() => {
+                setOpen(false)
+                setEditingLoan(null)
+              }}
+              type="button"
+            >
               Cancelar
             </button>
             <button className="btn-primary" disabled={isSubmitting} type="submit">
               {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Crear y generar cuotas
+              {editingLoan ? 'Guardar cambios' : 'Crear y generar cuotas'}
             </button>
           </div>
         </form>
