@@ -14,7 +14,8 @@ import { requiredMessage, validatePositiveMoney } from '../utils/validators'
 const defaultValues = {
   aval_id: '',
   cliente_id: '',
-  fecha_inicio: inputDate(),
+  fecha_contrato: inputDate(),
+  fecha_inicio_pago: inputDate(),
   frecuencia: 'MENSUAL',
   interes_porcentaje: 10,
   monto: '',
@@ -67,7 +68,8 @@ export default function Prestamos() {
 
   const watched = useWatch({ control }) || defaultValues
   const calculation = calculateLoan({
-    fechaInicio: watched.fecha_inicio,
+    fechaInicio: watched.fecha_contrato,
+    fechaInicioPago: watched.fecha_inicio_pago,
     frecuencia: watched.frecuencia,
     interesPorcentaje: watched.interes_porcentaje,
     monto: watched.monto,
@@ -100,7 +102,8 @@ export default function Prestamos() {
     reset({
       aval_id: row.aval_id || '',
       cliente_id: row.cliente_id || '',
-      fecha_inicio: row.fecha_inicio || inputDate(),
+      fecha_contrato: row.fecha_contrato || row.fecha_inicio || inputDate(),
+      fecha_inicio_pago: row.fecha_inicio_pago || row.fecha_inicio || inputDate(),
       frecuencia: row.frecuencia_pago || row.frecuencia || 'MENSUAL',
       interes_porcentaje: row.interes_porcentaje ?? 0,
       monto: row.monto ?? '',
@@ -113,7 +116,8 @@ export default function Prestamos() {
   async function onSubmit(values) {
     setError('')
     const loan = calculateLoan({
-      fechaInicio: values.fecha_inicio,
+      fechaInicio: values.fecha_contrato,
+      fechaInicioPago: values.fecha_inicio_pago,
       frecuencia: values.frecuencia,
       interesPorcentaje: values.interes_porcentaje,
       monto: values.monto,
@@ -124,7 +128,9 @@ export default function Prestamos() {
       aval_id: values.aval_id || null,
       cliente_id: values.cliente_id,
       estado: 'ACTIVO',
-      fecha_inicio: values.fecha_inicio,
+      fecha_contrato: values.fecha_contrato,
+      fecha_inicio: values.fecha_contrato,
+      fecha_inicio_pago: values.fecha_inicio_pago,
       frecuencia: values.frecuencia,
       frecuencia_pago: values.frecuencia,
       interes_porcentaje: Number(values.interes_porcentaje),
@@ -271,7 +277,16 @@ export default function Prestamos() {
         </div>
       ),
     },
-    { header: 'Inicio', key: 'fecha_inicio', render: (row) => formatDate(row.fecha_inicio) },
+    {
+      header: 'Contrato',
+      key: 'fecha_contrato',
+      render: (row) => formatDate(row.fecha_contrato || row.fecha_inicio),
+    },
+    {
+      header: 'Inicio pago',
+      key: 'fecha_inicio_pago',
+      render: (row) => formatDate(row.fecha_inicio_pago || row.fecha_inicio),
+    },
     { header: 'Monto', key: 'monto', render: (row) => money(row.monto) },
     { header: 'Interes', key: 'interes_total', render: (row) => money(row.interes_total) },
     { header: 'Total', key: 'total_pagar', render: (row) => money(row.total_pagar) },
@@ -430,8 +445,30 @@ export default function Prestamos() {
             </label>
 
             <label className="block">
-              <span className="field-label">Fecha inicio</span>
-              <input className="field-input" type="date" {...register('fecha_inicio')} />
+              <span className="field-label">Fecha del contrato</span>
+              <input
+                className="field-input"
+                type="date"
+                {...register('fecha_contrato', {
+                  required: requiredMessage('Fecha del contrato'),
+                })}
+              />
+              {errors.fecha_contrato ? <p className="field-error">{errors.fecha_contrato.message}</p> : null}
+            </label>
+
+            <label className="block">
+              <span className="field-label">Inicio de pago</span>
+              <input
+                className="field-input"
+                type="date"
+                {...register('fecha_inicio_pago', {
+                  required: requiredMessage('Inicio de pago'),
+                })}
+              />
+              {errors.fecha_inicio_pago ? <p className="field-error">{errors.fecha_inicio_pago.message}</p> : null}
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                En frecuencia quincenal se usaran vencimientos los dias 1 y 16.
+              </p>
             </label>
 
             <label className="block">
@@ -447,7 +484,7 @@ export default function Prestamos() {
             </label>
           </div>
 
-          <div className="surface-muted grid gap-3 p-4 sm:grid-cols-4">
+          <div className="surface-muted grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-5">
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Capital</p>
               <p className="mt-1 font-semibold text-slate-950 dark:text-white">{money(calculation.monto)}</p>
@@ -463,6 +500,12 @@ export default function Prestamos() {
             <div>
               <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Cuotas</p>
               <p className="mt-1 font-semibold text-slate-950 dark:text-white">{calculation.cantidadCuotas}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Primera cuota</p>
+              <p className="mt-1 font-semibold text-slate-950 dark:text-white">
+                {formatDate(calculation.cuotas[0]?.fecha_vencimiento)}
+              </p>
             </div>
           </div>
 

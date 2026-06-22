@@ -56,13 +56,49 @@ function addMonths(date, amount) {
   return next
 }
 
-function addDays(date, amount) {
+function firstFortnightDate(date) {
   const next = new Date(date)
-  next.setDate(next.getDate() + amount)
+  const day = next.getDate()
+
+  if (day <= 1) {
+    next.setDate(1)
+    return next
+  }
+
+  if (day <= 16) {
+    next.setDate(16)
+    return next
+  }
+
+  next.setMonth(next.getMonth() + 1)
+  next.setDate(1)
   return next
 }
 
-export function calculateLoan({ fechaInicio, frecuencia, interesPorcentaje, monto, plazoMeses }) {
+function addFortnights(date, amount) {
+  const next = new Date(date)
+  const cycles = Math.max(0, amount)
+
+  for (let index = 0; index < cycles; index += 1) {
+    if (next.getDate() === 1) {
+      next.setDate(16)
+    } else {
+      next.setMonth(next.getMonth() + 1)
+      next.setDate(1)
+    }
+  }
+
+  return next
+}
+
+export function calculateLoan({
+  fechaInicio,
+  fechaInicioPago,
+  frecuencia,
+  interesPorcentaje,
+  monto,
+  plazoMeses,
+}) {
   const principalCents = cents(monto)
   const interestCents = Math.round((principalCents * (Number(interesPorcentaje) || 0)) / 100)
   const totalCents = principalCents + interestCents
@@ -70,14 +106,14 @@ export function calculateLoan({ fechaInicio, frecuencia, interesPorcentaje, mont
   const count = Math.max(1, installmentsCount || 1)
   const totalParts = distributeCents(totalCents, count)
   const interestParts = distributeWithinLimits(interestCents, totalParts)
-  const start = new Date(`${fechaInicio || inputDate()}T00:00:00`)
+  const rawStart = new Date(`${fechaInicioPago || fechaInicio || inputDate()}T00:00:00`)
+  const start = frecuencia === 'QUINCENAL' ? firstFortnightDate(rawStart) : rawStart
 
   const cuotas = Array.from({ length: count }, (_, index) => {
     const totalPartCents = totalParts[index]
     const interestPartCents = interestParts[index]
     const capitalCents = totalPartCents - interestPartCents
-    const dueDate =
-      frecuencia === 'QUINCENAL' ? addDays(start, 15 * (index + 1)) : addMonths(start, index + 1)
+    const dueDate = frecuencia === 'QUINCENAL' ? addFortnights(start, index) : addMonths(start, index)
 
     return {
       capital: currencyFromCents(capitalCents),

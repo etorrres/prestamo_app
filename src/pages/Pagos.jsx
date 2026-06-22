@@ -367,7 +367,8 @@ export default function Pagos() {
                 <option value="">Seleccionar contrato</option>
                 {loanOptions.map((loan) => (
                   <option key={loan.id} value={loan.id}>
-                    {loan.cliente} - {formatDate(loan.fecha_inicio)} - saldo {money(loan.saldo ?? loan.total_pagar)}
+                    {loan.cliente} - inicio pago {formatDate(loan.fecha_inicio_pago || loan.fecha_inicio)} - saldo{' '}
+                    {money(loan.saldo ?? loan.total_pagar)}
                   </option>
                 ))}
               </select>

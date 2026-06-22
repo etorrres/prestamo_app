@@ -74,7 +74,7 @@ export default function ContratoPagare() {
       }),
       { capital: 0, interes: 0, total: 0 },
     )
-    const signedAt = dateParts(selected.loan?.fecha_inicio || new Date())
+    const signedAt = dateParts(selected.loan?.fecha_contrato || selected.loan?.fecha_inicio || new Date())
     const frecuenciaTexto = selected.loan?.frecuencia === 'QUINCENAL' ? 'quincenales' : 'mensuales'
 
     return {
@@ -84,7 +84,7 @@ export default function ContratoPagare() {
       totals,
       valorCuota: firstInstallment?.total || 0,
     }
-  }, [selected.cuotas, selected.loan?.fecha_inicio, selected.loan?.frecuencia])
+  }, [selected.cuotas, selected.loan?.fecha_contrato, selected.loan?.fecha_inicio, selected.loan?.frecuencia])
 
   const isSigned = selected.loan?.estado_documental === 'FIRMADO'
 
