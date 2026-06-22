@@ -22,6 +22,7 @@ export default function Configuracion() {
   const logoUrl = useWatch({ control, name: 'logo_url' })
   const firmaUrl = useWatch({ control, name: 'firma_url' })
   const firmaAlto = useWatch({ control, name: 'firma_alto' }) || 96
+  const mostrarFirmaAcreedora = useWatch({ control, name: 'mostrar_firma_acreedora' }) ?? true
   const identidad = useWatch({ control, name: 'identidad' })
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export default function Configuracion() {
       firma_url: values.firma_url?.trim() || '',
       identidad: normalizeIdentity(values.identidad),
       logo_url: values.logo_url?.trim() || '',
+      mostrar_firma_acreedora: values.mostrar_firma_acreedora ?? false,
       nombre: toUpperName(values.nombre),
       telefono: values.telefono ? normalizePhone(values.telefono) : '',
     }
@@ -175,6 +177,23 @@ export default function Configuracion() {
               </div>
             ) : null}
             <input className="field-input" {...register('firma_url')} placeholder="URL de firma" />
+            <label className="mt-3 flex items-start gap-3 rounded-lg border border-slate-200 bg-white p-3 text-sm dark:border-slate-700 dark:bg-slate-950">
+              <input
+                className="mt-1 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                type="checkbox"
+                {...register('mostrar_firma_acreedora')}
+              />
+              <span>
+                <span className="block font-semibold text-slate-900 dark:text-white">
+                  Mostrar firma de la acreedora en documentos
+                </span>
+                <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">
+                  {mostrarFirmaAcreedora
+                    ? 'La firma se mostrara en contrato y pagare.'
+                    : 'La firma quedara oculta en contrato y pagare.'}
+                </span>
+              </span>
+            </label>
             <label className="mt-3 block">
               <span className="field-label">Tamaño de firma</span>
               <input

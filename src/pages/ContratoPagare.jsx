@@ -527,7 +527,8 @@ function AmortizationTable({ cuotas, totals }) {
 }
 
 function ContractSignatures({ acreedora, aval, cliente, loan }) {
-  const creditorSignature = loan.firma_acreedora_url || acreedora?.firma_url
+  const showCreditorSignature = acreedora?.mostrar_firma_acreedora !== false
+  const creditorSignature = showCreditorSignature ? loan.firma_acreedora_url || acreedora?.firma_url : ''
   const creditorSignatureHeight = Number(acreedora?.firma_alto || 96)
 
   return (
@@ -560,7 +561,8 @@ function ContractSignatures({ acreedora, aval, cliente, loan }) {
 }
 
 function PagareSignatures({ acreedora, cliente, loan }) {
-  const creditorSignature = loan.firma_acreedora_url || acreedora?.firma_url
+  const showCreditorSignature = acreedora?.mostrar_firma_acreedora !== false
+  const creditorSignature = showCreditorSignature ? loan.firma_acreedora_url || acreedora?.firma_url : ''
   const creditorSignatureHeight = Number(acreedora?.firma_alto || 96)
 
   return (

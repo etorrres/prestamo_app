@@ -7,6 +7,7 @@ export const DEFAULT_CREDITOR = {
   firma_url: '',
   identidad: '0801199215516',
   logo_url: '',
+  mostrar_firma_acreedora: true,
   nombre: 'KEYDI SIOMARA IRIAS GARCÍA',
   telefono: '',
 }

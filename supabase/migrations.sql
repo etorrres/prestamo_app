@@ -73,12 +73,14 @@ create table if not exists configuracion (
   logo_url text,
   firma_url text,
   firma_alto integer default 96,
+  mostrar_firma_acreedora boolean default true,
   fecha_creacion timestamptz default now(),
   fecha_actualizacion timestamptz default now()
 );
 
 alter table configuracion
-  add column if not exists firma_alto integer default 96;
+  add column if not exists firma_alto integer default 96,
+  add column if not exists mostrar_firma_acreedora boolean default true;
 
 create index if not exists clientes_user_id_idx on clientes(user_id);
 create index if not exists avales_user_id_idx on avales(user_id);
