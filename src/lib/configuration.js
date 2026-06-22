@@ -2,6 +2,11 @@ import { DEFAULT_CREDITOR } from './constants'
 
 const storageKey = 'prestamos_keydi_configuracion'
 
+function timeValue(value) {
+  const time = new Date(value || 0).getTime()
+  return Number.isNaN(time) ? 0 : time
+}
+
 export function readLocalConfiguration() {
   try {
     const saved = JSON.parse(localStorage.getItem(storageKey) || '{}')
@@ -26,7 +31,10 @@ export async function loadConfiguration(supabase, userId) {
     .maybeSingle()
 
   if (error || !data) return { data: local, source: 'local' }
-  const merged = { ...DEFAULT_CREDITOR, ...data }
+  const server = { ...DEFAULT_CREDITOR, ...data }
+  const merged = timeValue(local.fecha_actualizacion) > timeValue(server.fecha_actualizacion)
+    ? { ...server, ...local }
+    : server
   saveLocalConfiguration(merged)
   return { data: merged, source: 'supabase' }
 }
@@ -48,6 +56,7 @@ export async function saveConfiguration(supabase, userId, values) {
     .single()
 
   if (error) return { data: payload, error, source: 'local' }
+  saveLocalConfiguration(data)
   return { data, source: 'supabase' }
 }
 

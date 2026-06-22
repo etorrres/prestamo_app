@@ -48,9 +48,13 @@ export default function Configuracion() {
       nombre: toUpperName(values.nombre),
       telefono: values.telefono ? normalizePhone(values.telefono) : '',
     }
-    const { source } = await saveConfiguration(supabase, user?.id, payload)
+    const { error, source } = await saveConfiguration(supabase, user?.id, payload)
     reset(payload)
-    setMessage(source === 'supabase' ? 'Configuracion guardada.' : 'Configuracion guardada localmente.')
+    setMessage(
+      source === 'supabase'
+        ? 'Configuracion guardada.'
+        : `Configuracion guardada localmente. ${error ? 'Ejecuta la migracion o recarga el esquema de Supabase para persistirla en la nube.' : ''}`,
+    )
   }
 
   async function handleFile(field, folder, file) {
@@ -179,7 +183,7 @@ export default function Configuracion() {
                 min="48"
                 step="4"
                 type="range"
-                {...register('firma_alto')}
+                {...register('firma_alto', { valueAsNumber: true })}
               />
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{firmaAlto}px de alto</p>
             </label>
