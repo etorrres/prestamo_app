@@ -87,6 +87,21 @@ export default function ContratoPagare() {
   }, [selected.cuotas, selected.loan?.fecha_contrato, selected.loan?.fecha_inicio, selected.loan?.frecuencia])
 
   const isSigned = selected.loan?.estado_documental === 'FIRMADO'
+  const contractNumber = getContractNumber(selected.loan)
+
+  function handlePrint() {
+    if (!selected.loan) return
+    const previousTitle = document.title
+    document.title = buildExportTitle(selected.cliente, selected.loan)
+
+    const restoreTitle = () => {
+      document.title = previousTitle
+      window.removeEventListener('afterprint', restoreTitle)
+    }
+
+    window.addEventListener('afterprint', restoreTitle, { once: true })
+    window.print()
+  }
 
   async function updateDocumentStatus(status) {
     setMessage('')
@@ -178,12 +193,12 @@ export default function ContratoPagare() {
         <div>
           <h1 className="page-title">Contrato y pagare</h1>
           <p className="page-subtitle">
-            Contrato privado y pagare en paginas separadas, generados desde el prestamo seleccionado.
+            Contrato privado y pagare integrados en una sola exportacion desde el prestamo seleccionado.
           </p>
         </div>
-        <button className="btn-primary" onClick={() => window.print()} type="button">
+        <button className="btn-primary" disabled={!selected.loan} onClick={handlePrint} type="button">
           <Printer className="h-4 w-4" />
-          Imprimir o guardar PDF
+          Exportar contrato y pagare
         </button>
       </div>
 
@@ -202,7 +217,7 @@ export default function ContratoPagare() {
                 const cliente = clientes.find((row) => row.id === loan.cliente_id)
                 return (
                   <option key={loan.id} value={loan.id}>
-                    {cliente?.nombre || 'Sin cliente'} - {lempiras(loan.total_pagar)}
+                    Contrato {getContractNumber(loan)} - {cliente?.nombre || 'Sin cliente'} - {lempiras(loan.total_pagar)}
                   </option>
                 )
               })}
@@ -263,6 +278,7 @@ export default function ContratoPagare() {
           <article className="legal-document legal-page">
             <DocumentHeader
               acreedora={acreedora}
+              contractNumber={contractNumber}
               label="Contrato privado"
               showLogo={false}
               title="Contrato privado de prestamo de dinero"
@@ -340,7 +356,7 @@ export default function ContratoPagare() {
                 <strong>{safeText(acreedora?.ciudad, 'Tegucigalpa')}</strong>.
               </Clause>
 
-              <p>
+              <p className="signature-intro">
                 Y en senal de aceptacion firman el presente documento en dos ejemplares del mismo tenor, en la ciudad de{' '}
                 <strong>{safeText(acreedora?.ciudad, 'Tegucigalpa')}</strong>, a los{' '}
                 <strong>{documentData.signedAt.dia}</strong> dias del mes de{' '}
@@ -359,7 +375,13 @@ export default function ContratoPagare() {
           </article>
 
           <article className="legal-document legal-page legal-page-break pagare-page">
-            <DocumentHeader acreedora={acreedora} compact label="Titulo ejecutivo" title="Pagare" />
+            <DocumentHeader
+              acreedora={acreedora}
+              compact
+              contractNumber={contractNumber}
+              label="Titulo ejecutivo"
+              title="Pagare"
+            />
 
             <div className="mb-5 rounded-lg border-2 border-slate-900 p-4 text-center">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">Por</p>
@@ -404,7 +426,7 @@ export default function ContratoPagare() {
                 senalo como domicilio la ciudad de <strong>{safeText(acreedora?.ciudad, 'Tegucigalpa')}</strong>.
               </Clause>
 
-              <p>
+              <p className="signature-intro">
                 Firmo el presente Pagare en la ciudad de{' '}
                 <strong>{safeText(acreedora?.ciudad, 'Tegucigalpa')}</strong>, a los{' '}
                 <strong>{documentData.signedAt.dia}</strong> dias del mes de{' '}
@@ -420,7 +442,7 @@ export default function ContratoPagare() {
   )
 }
 
-function DocumentHeader({ acreedora, compact = false, label, showLogo = true, title }) {
+function DocumentHeader({ acreedora, compact = false, contractNumber, label, showLogo = true, title }) {
   return (
     <header className={`${compact ? 'mb-5 pb-4' : 'mb-8 pb-5'} border-b-2 border-slate-900`}>
       <div className="flex items-start justify-between gap-6">
@@ -429,6 +451,9 @@ function DocumentHeader({ acreedora, compact = false, label, showLogo = true, ti
           <h2 className={`${compact ? 'text-xl' : 'text-2xl'} mt-2 font-black uppercase tracking-normal text-slate-950`}>
             {title}
           </h2>
+          {contractNumber ? (
+            <p className="mt-2 text-xs font-bold uppercase tracking-normal text-slate-700">Contrato No. {contractNumber}</p>
+          ) : null}
           <p className="mt-2 text-sm text-slate-600">{safeText(acreedora?.ciudad, 'Tegucigalpa')}, Honduras</p>
         </div>
         {!showLogo ? null : acreedora?.logo_url ? (
@@ -449,6 +474,29 @@ function DocumentHeader({ acreedora, compact = false, label, showLogo = true, ti
   )
 }
 
+function getContractNumber(loan) {
+  if (!loan) return ''
+  const explicitNumber = String(loan.numero_contrato || loan.numero || loan.codigo || loan.correlativo || '').trim()
+  if (explicitNumber) return explicitNumber.toLocaleUpperCase('es-HN')
+  return String(loan.id || '').slice(0, 8).toLocaleUpperCase('es-HN')
+}
+
+function sanitizeExportPart(value, fallback) {
+  const sanitized = safeText(value, fallback)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+  return sanitized || fallback
+}
+
+function buildExportTitle(cliente, loan) {
+  const clientName = sanitizeExportPart(cliente?.nombre, 'Sin-cliente')
+  const contractNumber = sanitizeExportPart(getContractNumber(loan), 'Sin-contrato')
+  return `Contrato-Pagare-${clientName}-Contrato-${contractNumber}`
+}
+
 function dataUrlToBlob(dataUrl) {
   const [header, encoded] = dataUrl.split(',')
   const mime = header.match(/:(.*?);/)?.[1] || 'image/png'
@@ -462,7 +510,7 @@ function dataUrlToBlob(dataUrl) {
 
 function Clause({ children, title }) {
   return (
-    <section>
+    <section className="legal-clause">
       <h3 className="legal-clause-title">{title}</h3>
       <p>{children}</p>
     </section>
@@ -477,23 +525,25 @@ function FinancialSummary({ loan }) {
   ]
 
   return (
-    <table className="legal-table max-w-xl">
-      <tbody>
-        {rows.map(([label, value], index) => (
-          <tr className={index === rows.length - 1 ? 'font-bold' : ''} key={label}>
-            <td>{label}</td>
-            <td className="text-right">{value}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <div className="legal-table-wrap financial-summary-wrap print-keep-together">
+      <table className="legal-table financial-summary-table max-w-xl">
+        <tbody>
+          {rows.map(([label, value], index) => (
+            <tr className={index === rows.length - 1 ? 'font-bold' : ''} key={label}>
+              <td>{label}</td>
+              <td className="text-right">{value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
 function AmortizationTable({ cuotas, totals }) {
   return (
-    <div className="overflow-x-auto">
-      <table className="legal-table text-xs">
+    <div className="legal-table-wrap amortization-table-wrap overflow-x-auto print-keep-together">
+      <table className="legal-table amortization-table text-xs">
         <thead>
           <tr>
             <th>Cuota</th>
@@ -532,7 +582,7 @@ function ContractSignatures({ acreedora, aval, cliente, loan }) {
   const creditorSignatureHeight = Number(acreedora?.firma_alto || 96)
 
   return (
-    <footer className="mt-14 space-y-8 text-sm">
+    <footer className="contract-signatures signature-section mt-14 space-y-8 text-sm print-keep-together">
       <div className="grid gap-8 sm:grid-cols-2">
         <SignatureBlock
           identity={formatIdentity(acreedora?.identidad)}
@@ -566,7 +616,7 @@ function PagareSignatures({ acreedora, cliente, loan }) {
   const creditorSignatureHeight = Number(acreedora?.firma_alto || 96)
 
   return (
-    <footer className="pagare-signatures mt-10 grid gap-8 text-sm sm:grid-cols-2">
+    <footer className="pagare-signatures signature-section mt-10 grid gap-8 text-sm sm:grid-cols-2 print-keep-together">
       <SignatureBlock
         details={[
           `Direccion: ${safeText(cliente?.direccion)}`,
@@ -590,12 +640,12 @@ function PagareSignatures({ acreedora, cliente, loan }) {
 
 function SignatureBlock({ details = [], identity, image, imageHeight = 64, name, title }) {
   return (
-    <div className="text-center">
-      <div className="mb-3 flex items-end justify-center" style={{ minHeight: `${imageHeight}px` }}>
+    <div className="signature-block text-center print-keep-together">
+      <div className="signature-image-slot mb-3 flex items-end justify-center" style={{ minHeight: `${imageHeight}px` }}>
         {image ? (
           <img
             alt={`Firma ${title}`}
-            className="mx-auto max-w-full object-contain"
+            className="signature-image mx-auto max-w-full object-contain"
             src={image}
             style={{ height: `${imageHeight}px` }}
           />

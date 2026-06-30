@@ -1,6 +1,7 @@
 import { digitsOnly, toUpperName } from './formatters'
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const emailRegex =
+  /^(?!.*\.\.)[\p{L}\p{N}.!#$%&'*+/=?^_`{|}~-]+@[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?(?:\.[\p{L}\p{N}](?:[\p{L}\p{N}-]{0,61}[\p{L}\p{N}])?)+$/u
 
 export function normalizeIdentity(value = '') {
   const digits = digitsOnly(value)

@@ -132,7 +132,7 @@ export default function Configuracion() {
 
           <label className="block">
             <span className="field-label">Correo</span>
-            <input className="field-input" type="email" {...register('correo', { validate: validateEmail })} />
+            <input className="field-input" inputMode="email" type="text" {...register('correo', { validate: validateEmail })} />
             {errors.correo ? <p className="field-error">{errors.correo.message}</p> : null}
           </label>
 

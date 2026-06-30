@@ -1,6 +1,6 @@
 @media print {
   @page {
-    margin: 15mm;
+    margin: 10mm 11mm;
     size: letter;
   }
 
@@ -11,13 +11,30 @@
     color: black !important;
   }
 
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   .no-print {
     display: none !important;
   }
 
+  .page-shell {
+    display: block !important;
+    gap: 0 !important;
+    max-width: none !important;
+    padding: 0 !important;
+  }
+
   .print-area {
     display: block !important;
+    margin: 0 !important;
     width: 100% !important;
+  }
+
+  .print-area > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0 !important;
   }
 
   .legal-document {
@@ -25,9 +42,11 @@
     padding: 0 !important;
     box-shadow: none !important;
     border: 0 !important;
+    width: 100% !important;
   }
 
   .legal-page {
+    border: 0 !important;
     min-height: auto !important;
   }
 
@@ -37,33 +56,184 @@
     page-break-before: always !important;
   }
 
+  .legal-document header {
+    margin-bottom: 10px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .legal-document header h2 {
+    font-size: 16px !important;
+    line-height: 1.15 !important;
+    margin-top: 4px !important;
+  }
+
+  .legal-document header p {
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+    margin-top: 3px !important;
+  }
+
+  .legal-copy {
+    font-size: 10.5px !important;
+    line-height: 1.28 !important;
+    orphans: 3;
+    text-align: justify !important;
+    widows: 3;
+  }
+
+  .legal-copy p {
+    margin: 0 !important;
+  }
+
+  .legal-copy > :not([hidden]) ~ :not([hidden]) {
+    margin-bottom: 0 !important;
+    margin-top: 7px !important;
+  }
+
+  .legal-clause {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .legal-clause-title,
+  .legal-section-title {
+    font-size: 10.5px !important;
+    line-height: 1.15 !important;
+    margin-bottom: 2px !important;
+    margin-top: 7px !important;
+  }
+
+  .legal-section-title {
+    margin-top: 8px !important;
+  }
+
+  .signature-intro {
+    break-after: avoid !important;
+    margin-top: 8px !important;
+    page-break-after: avoid !important;
+  }
+
+  .print-keep-together,
+  .legal-table-wrap,
+  .signature-section,
+  .signature-block {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .legal-table-wrap {
+    margin: 6px 0 !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  .financial-summary-wrap {
+    width: 72mm !important;
+  }
+
+  .legal-table {
+    break-inside: avoid !important;
+    font-size: 9px !important;
+    line-height: 1.12 !important;
+    margin: 0 !important;
+    page-break-inside: avoid !important;
+    table-layout: fixed !important;
+    width: 100% !important;
+  }
+
+  .financial-summary-table {
+    max-width: 72mm !important;
+  }
+
+  .amortization-table {
+    font-size: 8.5px !important;
+  }
+
+  .legal-table th,
+  .legal-table td {
+    padding: 2px 4px !important;
+    vertical-align: middle !important;
+  }
+
+  .amortization-table th,
+  .amortization-table td {
+    padding: 1.5px 3px !important;
+    white-space: nowrap !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
   .pagare-page {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
   }
 
   .pagare-page .legal-copy {
-    font-size: 11px !important;
-    line-height: 1.45 !important;
+    font-size: 10.5px !important;
+    line-height: 1.28 !important;
   }
 
   .pagare-page .legal-clause-title {
-    font-size: 11px !important;
-    margin-bottom: 3px !important;
-    margin-top: 10px !important;
+    font-size: 10.5px !important;
+    margin-bottom: 2px !important;
+    margin-top: 7px !important;
+  }
+
+  .contract-signatures,
+  .pagare-signatures {
+    break-before: avoid !important;
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+    page-break-before: avoid !important;
+  }
+
+  .contract-signatures {
+    margin-top: 16px !important;
+  }
+
+  .contract-signatures > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 14px !important;
+  }
+
+  .contract-signatures .grid,
+  .pagare-signatures {
+    gap: 16px !important;
   }
 
   .pagare-signatures {
-    font-size: 10px !important;
-    margin-top: 28px !important;
+    margin-top: 18px !important;
+  }
+
+  .signature-image-slot {
+    margin-bottom: 5px !important;
+    min-height: 38px !important;
+  }
+
+  .signature-image {
+    height: 38px !important;
+    max-height: 38px !important;
+  }
+
+  .signature-block .border-t {
+    padding-top: 5px !important;
+  }
+
+  .signature-block p {
+    line-height: 1.15 !important;
+    margin: 1px 0 !important;
   }
 
   table {
-    page-break-inside: auto;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 
   tr {
-    page-break-inside: avoid;
+    break-inside: avoid !important;
     page-break-after: auto;
+    page-break-inside: avoid !important;
   }
 }

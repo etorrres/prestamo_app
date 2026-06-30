@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { Loader2, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../context/useAuth'
+import { validateEmail } from '../utils/validators'
 
 export default function Login() {
   const { hasSupabaseConfig, loading, session, supabase } = useAuth()
@@ -26,15 +27,16 @@ export default function Login() {
       setMessage('Configura VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY para iniciar sesion.')
       return
     }
+    const email = values.email.trim()
 
     const action =
       mode === 'register'
         ? supabase.auth.signUp({
-            email: values.email,
+            email,
             password: values.password,
           })
         : supabase.auth.signInWithPassword({
-            email: values.email,
+            email,
             password: values.password,
           })
 
@@ -78,9 +80,11 @@ export default function Login() {
               <input
                 autoComplete="email"
                 className="field-input"
-                type="email"
+                inputMode="email"
+                type="text"
                 {...register('email', {
                   required: 'El correo es obligatorio.',
+                  validate: validateEmail,
                 })}
               />
               {errors.email ? <p className="field-error">{errors.email.message}</p> : null}

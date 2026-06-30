@@ -266,7 +266,8 @@ export default function PeopleManager({ hasEmail = false, table, title, typeLabe
               <span className="field-label">Correo</span>
               <input
                 className="field-input"
-                type="email"
+                inputMode="email"
+                type="text"
                 {...register('correo', {
                   validate: validateEmail,
                 })}
