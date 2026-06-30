@@ -209,12 +209,10 @@
 
   .signature-image-slot {
     margin-bottom: 5px !important;
-    min-height: 38px !important;
   }
 
   .signature-image {
-    height: 38px !important;
-    max-height: 38px !important;
+    max-width: 100% !important;
   }
 
   .signature-block .border-t {

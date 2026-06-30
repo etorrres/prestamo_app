@@ -30,6 +30,7 @@ alter table prestamos
   add column if not exists estado text default 'ACTIVO',
   add column if not exists estado_documental text default 'BORRADOR',
   add column if not exists firma_acreedora_url text,
+  add column if not exists firma_acreedora_alto integer default 96,
   add column if not exists firma_deudor_url text,
   add column if not exists firma_aval_url text,
   add column if not exists fecha_creacion timestamptz default now(),

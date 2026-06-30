@@ -137,11 +137,24 @@ export default function ContratoPagare() {
     }
 
     const field = `firma_${type}_url`
-    const { error: updateError } = await supabase
+    const updatePayload = { ...auditFields(user.id), [field]: signatureSource }
+    if (type === 'acreedora') updatePayload.firma_acreedora_alto = getConfiguredSignatureHeight(acreedora)
+
+    let { error: updateError } = await supabase
       .from('prestamos')
-      .update({ ...auditFields(user.id), [field]: signatureSource })
+      .update(updatePayload)
       .eq('id', selected.loan.id)
       .eq('user_id', user.id)
+
+    if (updateError && type === 'acreedora' && isMissingSignatureHeightColumn(updateError)) {
+      delete updatePayload.firma_acreedora_alto
+      const retryResult = await supabase
+        .from('prestamos')
+        .update(updatePayload)
+        .eq('id', selected.loan.id)
+        .eq('user_id', user.id)
+      updateError = retryResult.error
+    }
 
     if (updateError) {
       setError(friendlyError(updateError))
@@ -150,7 +163,7 @@ export default function ContratoPagare() {
 
     setPrestamos((current) =>
       current.map((prestamo) =>
-        prestamo.id === selected.loan.id ? { ...prestamo, [field]: signatureSource } : prestamo,
+        prestamo.id === selected.loan.id ? { ...prestamo, ...updatePayload } : prestamo,
       ),
     )
     setMessage(
@@ -474,6 +487,31 @@ function DocumentHeader({ acreedora, compact = false, contractNumber, label, sho
   )
 }
 
+const DEFAULT_SIGNATURE_HEIGHT = 64
+const DEFAULT_CREDITOR_SIGNATURE_HEIGHT = 96
+
+function normalizeSignatureHeight(value, fallback = DEFAULT_SIGNATURE_HEIGHT) {
+  const height = Number(value)
+  if (!Number.isFinite(height) || height <= 0) return fallback
+  return Math.min(Math.max(height, 32), 220)
+}
+
+function getConfiguredSignatureHeight(acreedora) {
+  return normalizeSignatureHeight(acreedora?.firma_alto, DEFAULT_CREDITOR_SIGNATURE_HEIGHT)
+}
+
+function getCreditorSignatureHeight(loan, acreedora) {
+  return normalizeSignatureHeight(
+    loan?.firma_acreedora_alto || acreedora?.firma_alto,
+    DEFAULT_CREDITOR_SIGNATURE_HEIGHT,
+  )
+}
+
+function isMissingSignatureHeightColumn(error) {
+  const message = `${error?.code || ''} ${error?.message || ''} ${error?.details || ''}`
+  return message.includes('firma_acreedora_alto')
+}
+
 function getContractNumber(loan) {
   if (!loan) return ''
   const explicitNumber = String(loan.numero_contrato || loan.numero || loan.codigo || loan.correlativo || '').trim()
@@ -579,7 +617,8 @@ function AmortizationTable({ cuotas, totals }) {
 function ContractSignatures({ acreedora, aval, cliente, loan }) {
   const showCreditorSignature = acreedora?.mostrar_firma_acreedora !== false
   const creditorSignature = showCreditorSignature ? loan.firma_acreedora_url || acreedora?.firma_url : ''
-  const creditorSignatureHeight = Number(acreedora?.firma_alto || 96)
+  const creditorSignatureHeight = getCreditorSignatureHeight(loan, acreedora)
+  const mainRowSignatureSlotHeight = Math.max(creditorSignatureHeight, DEFAULT_SIGNATURE_HEIGHT)
 
   return (
     <footer className="contract-signatures signature-section mt-14 space-y-8 text-sm print-keep-together">
@@ -589,12 +628,14 @@ function ContractSignatures({ acreedora, aval, cliente, loan }) {
           image={creditorSignature}
           imageHeight={creditorSignatureHeight}
           name={safeText(acreedora?.nombre)}
+          slotHeight={mainRowSignatureSlotHeight}
           title="LA ACREEDORA"
         />
         <SignatureBlock
           identity={formatIdentity(cliente?.identidad)}
           image={loan.firma_deudor_url}
           name={safeText(cliente?.nombre)}
+          slotHeight={mainRowSignatureSlotHeight}
           title="EL DEUDOR"
         />
       </div>
@@ -613,7 +654,8 @@ function ContractSignatures({ acreedora, aval, cliente, loan }) {
 function PagareSignatures({ acreedora, cliente, loan }) {
   const showCreditorSignature = acreedora?.mostrar_firma_acreedora !== false
   const creditorSignature = showCreditorSignature ? loan.firma_acreedora_url || acreedora?.firma_url : ''
-  const creditorSignatureHeight = Number(acreedora?.firma_alto || 96)
+  const creditorSignatureHeight = getCreditorSignatureHeight(loan, acreedora)
+  const mainRowSignatureSlotHeight = Math.max(creditorSignatureHeight, DEFAULT_SIGNATURE_HEIGHT)
 
   return (
     <footer className="pagare-signatures signature-section mt-10 grid gap-8 text-sm sm:grid-cols-2 print-keep-together">
@@ -625,6 +667,7 @@ function PagareSignatures({ acreedora, cliente, loan }) {
         identity={formatIdentity(cliente?.identidad)}
         image={loan.firma_deudor_url}
         name={safeText(cliente?.nombre)}
+        slotHeight={mainRowSignatureSlotHeight}
         title="EL DEUDOR"
       />
       <SignatureBlock
@@ -632,22 +675,29 @@ function PagareSignatures({ acreedora, cliente, loan }) {
         image={creditorSignature}
         imageHeight={creditorSignatureHeight}
         name={safeText(acreedora?.nombre)}
+        slotHeight={mainRowSignatureSlotHeight}
         title="RECIBIDO Y ACEPTADO POR LA ACREEDORA"
       />
     </footer>
   )
 }
 
-function SignatureBlock({ details = [], identity, image, imageHeight = 64, name, title }) {
+function SignatureBlock({ details = [], identity, image, imageHeight = DEFAULT_SIGNATURE_HEIGHT, name, slotHeight, title }) {
+  const resolvedImageHeight = normalizeSignatureHeight(imageHeight, DEFAULT_SIGNATURE_HEIGHT)
+  const resolvedSlotHeight = normalizeSignatureHeight(slotHeight, resolvedImageHeight)
+
   return (
     <div className="signature-block text-center print-keep-together">
-      <div className="signature-image-slot mb-3 flex items-end justify-center" style={{ minHeight: `${imageHeight}px` }}>
+      <div
+        className="signature-image-slot mb-3 flex items-end justify-center"
+        style={{ minHeight: `${resolvedSlotHeight}px` }}
+      >
         {image ? (
           <img
             alt={`Firma ${title}`}
             className="signature-image mx-auto max-w-full object-contain"
             src={image}
-            style={{ height: `${imageHeight}px` }}
+            style={{ height: `${resolvedImageHeight}px` }}
           />
         ) : null}
       </div>
